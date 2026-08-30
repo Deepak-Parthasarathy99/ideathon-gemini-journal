@@ -1,0 +1,10 @@
+.git
+.gitignore
+.gcloudignore
+.env
+.venv/
+venv/
+__pycache__/
+*.pyc
+plan/
+README.md

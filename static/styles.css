@@ -1,0 +1,624 @@
+/* Material 3 — https://m3.material.io
+   Baseline colour scheme. To make it yours, generate a new scheme from a
+   source colour in Material Theme Builder and replace the two token blocks
+   below. Nothing outside those blocks names a colour, so that swap is the
+   only edit a re-theme needs. */
+
+:root {
+  /* --- M3 colour roles: light --- */
+  --md-primary: #6750a4;
+  --md-on-primary: #ffffff;
+  --md-primary-container: #eaddff;
+  --md-on-primary-container: #21005d;
+
+  --md-secondary: #625b71;
+  --md-on-secondary: #ffffff;
+  --md-secondary-container: #e8def8;
+  --md-on-secondary-container: #1d192b;
+
+  --md-error: #b3261e;
+  --md-on-error: #ffffff;
+  --md-error-container: #f9dedc;
+  --md-on-error-container: #410e0b;
+
+  --md-surface: #fef7ff;
+  --md-on-surface: #1d1b20;
+  --md-on-surface-variant: #49454f;
+
+  --md-surface-container-lowest: #ffffff;
+  --md-surface-container-low: #f7f2fa;
+  --md-surface-container: #f3edf7;
+  --md-surface-container-high: #ece6f0;
+  --md-surface-container-highest: #e6e0e9;
+
+  --md-outline: #79747e;
+  --md-outline-variant: #cac4d0;
+
+  --md-inverse-surface: #322f35;
+  --md-inverse-on-surface: #f5eff7;
+
+  /* --- M3 shape scale --- */
+  --md-corner-xs: 4px;
+  --md-corner-s: 8px;
+  --md-corner-m: 12px;
+  --md-corner-l: 16px;
+  --md-corner-xl: 28px;
+  --md-corner-full: 999px;
+
+  /* --- M3 elevation --- */
+  --md-elevation-1: 0 1px 2px rgba(0, 0, 0, 0.3), 0 1px 3px 1px rgba(0, 0, 0, 0.15);
+  --md-elevation-2: 0 1px 2px rgba(0, 0, 0, 0.3), 0 2px 6px 2px rgba(0, 0, 0, 0.15);
+
+  /* --- M3 state layer opacities --- */
+  --md-state-hover: 0.08;
+  --md-state-focus: 0.10;
+  --md-state-pressed: 0.10;
+
+  --md-font: "Roboto", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    /* --- M3 colour roles: dark --- */
+    --md-primary: #d0bcff;
+    --md-on-primary: #381e72;
+    --md-primary-container: #4f378b;
+    --md-on-primary-container: #eaddff;
+
+    --md-secondary: #ccc2dc;
+    --md-on-secondary: #332d41;
+    --md-secondary-container: #4a4458;
+    --md-on-secondary-container: #e8def8;
+
+    --md-error: #f2b8b5;
+    --md-on-error: #601410;
+    --md-error-container: #8c1d18;
+    --md-on-error-container: #f9dedc;
+
+    --md-surface: #141218;
+    --md-on-surface: #e6e0e9;
+    --md-on-surface-variant: #cac4d0;
+
+    --md-surface-container-lowest: #0f0d13;
+    --md-surface-container-low: #1d1b20;
+    --md-surface-container: #211f26;
+    --md-surface-container-high: #2b2930;
+    --md-surface-container-highest: #36343b;
+
+    --md-outline: #938f99;
+    --md-outline-variant: #49454f;
+
+    --md-inverse-surface: #e6e0e9;
+    --md-inverse-on-surface: #322f35;
+  }
+}
+
+/* ------------------------------------------------------------------ base */
+
+* { box-sizing: border-box; }
+
+html, body { height: 100%; }
+
+body {
+  margin: 0;
+  background: var(--md-surface);
+  color: var(--md-on-surface);
+  font-family: var(--md-font);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* --- M3 type scale (the roles this app actually uses) --- */
+
+.md-display-small {
+  font-size: 36px; line-height: 44px; font-weight: 400; letter-spacing: 0;
+}
+.md-headline-small {
+  font-size: 24px; line-height: 32px; font-weight: 400; letter-spacing: 0;
+}
+.md-title-large {
+  font-size: 22px; line-height: 28px; font-weight: 400; letter-spacing: 0;
+}
+.md-title-medium {
+  font-size: 16px; line-height: 24px; font-weight: 500; letter-spacing: 0.15px;
+}
+.md-body-large {
+  font-size: 16px; line-height: 24px; font-weight: 400; letter-spacing: 0.5px;
+}
+.md-body-medium {
+  font-size: 14px; line-height: 20px; font-weight: 400; letter-spacing: 0.25px;
+}
+.md-label-large {
+  font-size: 14px; line-height: 20px; font-weight: 500; letter-spacing: 0.1px;
+}
+
+/* --------------------------------------------------------------- buttons */
+
+.md-button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 24px;
+  border: none;
+  border-radius: var(--md-corner-full);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0.1px;
+  cursor: pointer;
+  overflow: hidden;
+  transition: box-shadow 120ms ease;
+}
+
+.md-button::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: currentColor;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.md-button:hover::before { opacity: var(--md-state-hover); }
+.md-button:focus-visible::before { opacity: var(--md-state-focus); }
+.md-button:active::before { opacity: var(--md-state-pressed); }
+
+.md-button:focus-visible {
+  outline: 3px solid var(--md-primary);
+  outline-offset: 2px;
+}
+
+.md-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.38;
+}
+.md-button:disabled::before { opacity: 0; }
+
+.md-button--filled {
+  background: var(--md-primary);
+  color: var(--md-on-primary);
+}
+.md-button--filled:hover { box-shadow: var(--md-elevation-1); }
+
+.md-button--tonal {
+  background: var(--md-secondary-container);
+  color: var(--md-on-secondary-container);
+}
+
+.md-button--text {
+  background: transparent;
+  color: var(--md-primary);
+  padding: 0 12px;
+}
+
+.md-icon-button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: none;
+  border-radius: var(--md-corner-full);
+  background: transparent;
+  color: var(--md-on-surface-variant);
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.md-icon-button::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: currentColor;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+.md-icon-button:hover::before { opacity: var(--md-state-hover); }
+.md-icon-button:focus-visible::before { opacity: var(--md-state-focus); }
+.md-icon-button:focus-visible { outline: 3px solid var(--md-primary); outline-offset: 2px; }
+
+/* -------------------------------------------------------------- app bar */
+
+.md-top-app-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 64px;
+  padding: 0 16px;
+  background: var(--md-surface-container);
+  color: var(--md-on-surface);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.md-top-app-bar__title {
+  flex: 1;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.md-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--md-corner-full);
+  background: var(--md-primary-container);
+  color: var(--md-on-primary-container);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 500;
+  object-fit: cover;
+}
+
+/* --------------------------------------------------------- text field */
+
+.md-text-field {
+  position: relative;
+  flex: 1;
+  display: flex;
+}
+
+.md-text-field textarea {
+  width: 100%;
+  min-height: 56px;
+  max-height: 160px;
+  resize: none;
+  padding: 16px;
+  border: 1px solid var(--md-outline);
+  border-radius: var(--md-corner-l);
+  background: var(--md-surface-container-lowest);
+  color: var(--md-on-surface);
+  font-family: inherit;
+  font-size: 16px;
+  line-height: 24px;
+}
+
+.md-text-field textarea::placeholder { color: var(--md-on-surface-variant); }
+
+.md-text-field textarea:focus {
+  outline: none;
+  border-color: var(--md-primary);
+  border-width: 2px;
+  padding: 15px;
+}
+
+/* ------------------------------------------------------------- layout */
+
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.view { display: none; flex: 1; min-height: 0; }
+.view[data-active="true"] { display: flex; }
+
+/* --- signed out --- */
+
+.signin {
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  padding: 32px 24px 80px;
+  text-align: center;
+}
+
+.signin__card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  max-width: 420px;
+  padding: 40px 32px;
+  background: var(--md-surface-container-low);
+  border-radius: var(--md-corner-xl);
+}
+
+.signin__lead {
+  margin: 0;
+  color: var(--md-on-surface-variant);
+  max-width: 34ch;
+}
+
+/* --- chat --- */
+
+.chat {
+  flex-direction: column;
+  width: 100%;
+  max-width: 760px;
+  margin: 0 auto;
+  min-height: 0;
+}
+
+.chat__log {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.bubble {
+  max-width: 78%;
+  padding: 12px 16px;
+  border-radius: var(--md-corner-l);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.bubble--user {
+  align-self: flex-end;
+  background: var(--md-primary-container);
+  color: var(--md-on-primary-container);
+  border-bottom-right-radius: var(--md-corner-xs);
+}
+
+.bubble--assistant {
+  align-self: flex-start;
+  background: var(--md-surface-container-high);
+  color: var(--md-on-surface);
+  border-bottom-left-radius: var(--md-corner-xs);
+}
+
+.bubble--error {
+  align-self: flex-start;
+  background: var(--md-error-container);
+  color: var(--md-on-error-container);
+}
+
+/* typing indicator */
+
+.bubble--typing { display: flex; gap: 4px; align-items: center; }
+
+.bubble--typing i {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--md-corner-full);
+  background: var(--md-on-surface-variant);
+  animation: blink 1.2s infinite ease-in-out;
+}
+.bubble--typing i:nth-child(2) { animation-delay: 0.2s; }
+.bubble--typing i:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes blink {
+  0%, 80%, 100% { opacity: 0.3; }
+  40% { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bubble--typing i { animation: none; opacity: 0.6; }
+  * { transition-duration: 0.01ms !important; }
+}
+
+/* empty state */
+
+.chat__empty {
+  margin: auto;
+  text-align: center;
+  color: var(--md-on-surface-variant);
+  max-width: 36ch;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* composer */
+
+.composer {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  padding: 12px 16px 20px;
+  background: var(--md-surface);
+}
+
+.composer__send {
+  width: 56px;
+  height: 56px;
+  flex: none;
+  border-radius: var(--md-corner-l);
+  background: var(--md-primary);
+  color: var(--md-on-primary);
+  border: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+}
+.composer__send::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: currentColor;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+.composer__send:hover::before { opacity: var(--md-state-hover); }
+.composer__send:focus-visible { outline: 3px solid var(--md-primary); outline-offset: 2px; }
+.composer__send:disabled { opacity: 0.38; cursor: not-allowed; }
+
+/* snackbar */
+
+.md-snackbar {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translate(-50%, 120%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 48px;
+  max-width: min(560px, calc(100vw - 32px));
+  padding: 14px 16px;
+  border-radius: var(--md-corner-xs);
+  background: var(--md-inverse-surface);
+  color: var(--md-inverse-on-surface);
+  box-shadow: var(--md-elevation-2);
+  transition: transform 200ms ease;
+  z-index: 50;
+}
+
+.md-snackbar[data-open="true"] { transform: translate(-50%, 0); }
+
+.visually-hidden {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ------------------------------------------------------------------ tabs */
+
+.tabs {
+  display: flex;
+  gap: 4px;
+  background: var(--md-surface-container);
+  border-radius: var(--md-corner-full);
+  padding: 4px;
+}
+
+.tabs__tab {
+  border: none;
+  background: transparent;
+  color: var(--md-on-surface-variant);
+  font-family: var(--md-font);
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0.1px;
+  padding: 6px 16px;
+  border-radius: var(--md-corner-full);
+  cursor: pointer;
+}
+
+.tabs__tab[data-active="true"] {
+  background: var(--md-secondary-container);
+  color: var(--md-on-secondary-container);
+}
+
+.tabs__tab:focus-visible { outline: 2px solid var(--md-primary); outline-offset: 1px; }
+
+/* ---------------------------------------------------------------- opener */
+
+.bubble--opener {
+  border: 1px dashed var(--md-outline-variant);
+  background: var(--md-primary-container);
+  color: var(--md-on-primary-container);
+}
+
+/* -------------------------------------------------------------- insights */
+
+.insights { justify-content: center; }
+
+.insights__scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  width: min(720px, 100%);
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 24px 16px 48px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.insights__empty,
+.insights__loading {
+  text-align: center;
+  color: var(--md-on-surface-variant);
+  padding: 48px 16px;
+}
+
+.insights__meta { color: var(--md-on-surface-variant); }
+
+#insights-report {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.insights__card {
+  background: var(--md-surface-container-low);
+  border-radius: var(--md-corner-l);
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.insights__card--primary {
+  background: var(--md-primary-container);
+  color: var(--md-on-primary-container);
+}
+
+.insights__card p { margin: 0; }
+.insights__card h3 { margin: 0; }
+
+.insights__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.insights__chip {
+  background: var(--md-secondary-container);
+  color: var(--md-on-secondary-container);
+  border-radius: var(--md-corner-s);
+  padding: 6px 12px;
+  font-size: 14px;
+  letter-spacing: 0.25px;
+}
+
+#insights-refresh { align-self: flex-start; }
+
+.tabs[hidden] { display: none; }
+
+/* The hidden attribute must always win, whatever display a class sets. */
+[hidden] { display: none !important; }
+
+/* Header actions sit on one line and never push the title out. */
+#account {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.md-top-app-bar__title { min-width: 0; }
+
+/* Narrow screens: title and actions on top, tabs on their own row —
+   the standard Material app-bar-plus-tabs arrangement. */
+@media (max-width: 600px) {
+  .md-top-app-bar {
+    flex-wrap: wrap;
+    height: auto;
+    padding: 8px 12px;
+    row-gap: 8px;
+  }
+
+  .md-top-app-bar__title { order: 1; flex: 1; }
+  #account { order: 2; }
+
+  .tabs {
+    order: 3;
+    width: 100%;
+    justify-content: center;
+  }
+
+  .tabs__tab { flex: 1; }
+}

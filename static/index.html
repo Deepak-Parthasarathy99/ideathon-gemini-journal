@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Echo — a journal that remembers</title>
+<meta name="description" content="A private journal that writes back and remembers what you told it.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500&display=swap">
+<link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+
+<div class="app-shell">
+
+  <header class="md-top-app-bar">
+    <h1 class="md-top-app-bar__title md-title-large">Echo</h1>
+
+    <div class="tabs" id="tabs" hidden role="tablist" aria-label="Views">
+      <button id="tab-journal" class="tabs__tab" type="button" role="tab"
+              data-active="true" aria-selected="true" aria-controls="view-chat">Journal</button>
+      <button id="tab-insights" class="tabs__tab" type="button" role="tab"
+              data-active="false" aria-selected="false" aria-controls="view-insights">Insights</button>
+    </div>
+
+    <div id="account" hidden>
+      <button id="clear" class="md-button md-button--text" type="button">Clear journal</button>
+      <button id="signout" class="md-button md-button--text" type="button">Sign out</button>
+      <span id="avatar" class="md-avatar" aria-hidden="true"></span>
+    </div>
+  </header>
+
+  <!-- Signed out -->
+  <main class="view signin" id="view-signin" data-active="true">
+    <div class="signin__card">
+      <h2 class="md-headline-small">A journal that remembers</h2>
+      <p class="signin__lead md-body-large">
+        Write a little each day. Echo writes back, picks up where you left off,
+        and shows you the patterns you can't see one entry at a time.
+        Everything you write is private to your account.
+      </p>
+      <button id="signin" class="md-button md-button--filled" type="button">
+        Continue with Google
+      </button>
+    </div>
+  </main>
+
+  <!-- Signed in -->
+  <main class="view chat" id="view-chat">
+    <div class="chat__log" id="log" role="log" aria-live="polite" aria-label="Conversation">
+      <div class="chat__empty" id="empty">
+        <p class="md-title-medium">This page is yours</p>
+        <p class="md-body-medium">Write whatever's on your mind. Echo listens, and remembers.</p>
+      </div>
+    </div>
+
+    <form class="composer" id="composer">
+      <label class="visually-hidden" for="message">Your message</label>
+      <div class="md-text-field">
+        <textarea id="message" name="message" rows="1" maxlength="4000"
+                  placeholder="Write about your day…" autocomplete="off"></textarea>
+      </div>
+      <button class="composer__send" id="send" type="submit" aria-label="Send message">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <path d="M3 20.5v-6l8-2.5-8-2.5v-6l19 8.5-19 8.5z"/>
+        </svg>
+      </button>
+    </form>
+  </main>
+
+  <!-- Insights -->
+  <main class="view insights" id="view-insights">
+    <div class="insights__scroll">
+      <div class="insights__empty" id="insights-empty" hidden>
+        <p class="md-title-medium">Not enough written yet</p>
+        <p class="md-body-medium">Come back after a few entries — Echo needs at least three to see a pattern.</p>
+      </div>
+
+      <div class="insights__empty" id="insights-error" hidden>
+        <p class="md-title-medium">Couldn't read your journal just now</p>
+        <p class="md-body-medium" id="insights-error-detail"></p>
+        <button id="insights-retry" class="md-button md-button--text" type="button">Try again</button>
+      </div>
+
+      <div class="insights__loading" id="insights-loading" hidden>
+        <p class="md-body-medium">Reading back through your journal…</p>
+      </div>
+
+      <div id="insights-report" hidden>
+        <p class="insights__meta md-body-medium" id="insights-meta"></p>
+
+        <section class="insights__card">
+          <h3 class="md-title-medium">What keeps coming up</h3>
+          <div class="insights__chips" id="insights-themes"></div>
+        </section>
+
+        <section class="insights__card">
+          <h3 class="md-title-medium">How the mood has moved</h3>
+          <p class="md-body-large" id="insights-mood"></p>
+        </section>
+
+        <section class="insights__card insights__card--primary">
+          <h3 class="md-title-medium">Something you might not have noticed</h3>
+          <p class="md-body-large" id="insights-observation"></p>
+        </section>
+
+        <section class="insights__card">
+          <h3 class="md-title-medium">Worth trying</h3>
+          <p class="md-body-large" id="insights-suggestion"></p>
+        </section>
+
+        <button id="insights-refresh" class="md-button md-button--text" type="button">
+          Re-read my journal
+        </button>
+      </div>
+    </div>
+  </main>
+
+</div>
+
+<div class="md-snackbar" id="snackbar" role="status" data-open="false">
+  <span id="snackbar-text" class="md-body-medium"></span>
+</div>
+
+<script type="module" src="/static/app.js"></script>
+</body>
+</html>
