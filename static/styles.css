@@ -622,3 +622,44 @@ body {
 
   .tabs__tab { flex: 1; }
 }
+
+/* ------------------------------------------------------- first-run bits */
+
+.starters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  margin-top: 8px;
+}
+
+.starters__chip {
+  border: 1px solid var(--md-outline-variant);
+  background: transparent;
+  color: var(--md-on-surface-variant);
+  font-family: var(--md-font);
+  font-size: 14px;
+  letter-spacing: 0.25px;
+  padding: 8px 16px;
+  border-radius: var(--md-corner-full);
+  cursor: pointer;
+}
+
+.starters__chip:hover {
+  background: var(--md-surface-container-high);
+  color: var(--md-on-surface);
+}
+
+.starters__chip:focus-visible { outline: 2px solid var(--md-primary); outline-offset: 2px; }
+
+.insights__sample {
+  background: var(--md-secondary-container);
+  color: var(--md-on-secondary-container);
+  border-radius: var(--md-corner-l);
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.insights__sample p { margin: 0; }

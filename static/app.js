@@ -156,6 +156,22 @@ async function start() {
 
 let insightsLoaded = false;
 
+// Shown only on an account with too little history, always behind the
+// "this is an example" banner. Invented, never presented as the user's.
+const SAMPLE_INSIGHTS = {
+  entry_count: 12,
+  themes: ["work pressure", "sleep", "a course you started", "calls home"],
+  mood_arc:
+    "The first week reads tense and clipped. The last few entries are longer " +
+    "and calmer — the change shows up right after you started walking in the evenings.",
+  observation:
+    "Sleep appears in eight of the twelve entries, and every day you described " +
+    "as difficult followed a night you called restless.",
+  suggestion:
+    "Try writing one line before bed instead of after work. Your evening entries " +
+    "are consistently kinder to you than your midday ones.",
+};
+
 function renderInsights(report) {
   el("insights-meta").textContent =
     `Read from your last ${report.entry_count} entries.`;
@@ -185,11 +201,20 @@ async function loadInsights(refresh = false) {
     const { insights } = await api(path);
     el("insights-loading").hidden = true;
 
-    // No report and no error means there simply isn't enough written yet.
+    // Nothing written yet: show a clearly-labelled example rather than a
+    // dead end, so the feature explains itself on a brand-new account.
     if (!insights) {
-      el("insights-empty").hidden = false;
+      renderInsights(SAMPLE_INSIGHTS);
+      el("insights-sample").hidden = false;
+      el("insights-meta").hidden = true;
+      el("insights-refresh").hidden = true;
+      el("insights-report").hidden = false;
       return;
     }
+
+    el("insights-sample").hidden = true;
+    el("insights-meta").hidden = false;
+    el("insights-refresh").hidden = false;
     renderInsights(insights);
     el("insights-report").hidden = false;
     insightsLoaded = true;
@@ -261,6 +286,15 @@ composer.addEventListener("submit", async (event) => {
     sendBtn.disabled = false;
     messageBox.focus();
   }
+});
+
+// First-run starters: one tap puts an opening in the box, ready to finish.
+el("starters").addEventListener("click", (event) => {
+  const chip = event.target.closest(".starters__chip");
+  if (!chip) return;
+  messageBox.value = `${chip.textContent.replace(/…$/, "")} `;
+  messageBox.focus();
+  messageBox.dispatchEvent(new Event("input"));
 });
 
 // Enter sends, Shift+Enter makes a new line.

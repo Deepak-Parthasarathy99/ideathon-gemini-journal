@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "echo-repo",
+      "runtimeExecutable": "/Users/fi-fundsindia/Documents/Hack2skill/.venv/bin/uvicorn",
+      "runtimeArgs": ["app.main:app", "--port", "8090"],
+      "port": 8090
+    }
+  ]
+}
