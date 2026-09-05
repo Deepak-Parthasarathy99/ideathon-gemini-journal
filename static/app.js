@@ -12,139 +12,39 @@ import {
 
 const el = (id) => document.getElementById(id);
 
-const views = {
-  signin: el("view-signin"),
-  chat: el("view-chat"),
-  insights: el("view-insights"),
-};
-const log = el("log");
-const empty = el("empty");
-const composer = el("composer");
-const messageBox = el("message");
-const sendBtn = el("send");
-
 let auth = null;
+let openDate = null;      // the entry on screen, YYYY-MM-DD
+let calMonth = null;      // first of the month the calendar is showing
+let saveTimer = null;
+let lastSaved = "";
 let busy = false;
-let insightsLoaded = false;
 
-// ---------------------------------------------------------------- helpers
+// --------------------------------------------------------------- dates
+// The browser owns the notion of "today": a server in UTC would file an
+// evening entry in Chennai under tomorrow.
 
-function show(view) {
-  views.signin.dataset.active = String(view === "signin");
-  views.chat.dataset.active = String(view === "chat");
-  views.insights.dataset.active = String(view === "insights");
-  for (const [id, active] of [
-    ["tab-journal", view === "chat"],
-    ["tab-insights", view === "insights"],
-  ]) {
-    el(id).dataset.active = String(active);
-    el(id).setAttribute("aria-selected", String(active));
-  }
+const iso = (d) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+const today = () => iso(new Date());
+const parse = (s) => { const [y, m, d] = s.split("-").map(Number); return new Date(y, m - 1, d); };
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+function heading(dateStr) {
+  const d = parse(dateStr);
+  return { date: `${MONTHS[d.getMonth()]} ${d.getDate()}`, weekday: DAYS[d.getDay()] };
 }
+
+// -------------------------------------------------------------- helpers
 
 let snackTimer;
 function toast(text) {
   el("snackbar-text").textContent = text;
   el("snackbar").dataset.open = "true";
   clearTimeout(snackTimer);
-  snackTimer = setTimeout(() => {
-    el("snackbar").dataset.open = "false";
-  }, 5000);
-}
-
-/** Wipe every trace of whoever was signed in before.
- *  The journal lives in the DOM as well as in Firestore, and sign-out has to
- *  clear both — otherwise the next person to sign in on this device sees the
- *  previous person's entries until their own data arrives. */
-function resetUserUI() {
-  log.querySelectorAll(".bubble, .day-divider").forEach((b) => b.remove());
-  lastDay = null;
-  el("streak").hidden = true;
-  empty.hidden = false;
-  insightsLoaded = false;
-  el("insights-report").hidden = true;
-  el("insights-error").hidden = true;
-  el("insights-empty").hidden = true;
-  el("insights-themes").innerHTML = "";
-  ["insights-mood", "insights-observation", "insights-suggestion", "insights-meta"]
-    .forEach((id) => (el(id).textContent = ""));
-}
-
-/** How many of the last seven days have an entry.
- *  Consistency is the thing people lose, so it is worth showing gently —
- *  a count of days written, never a streak to break. */
-function renderStreak(messages) {
-  const week = new Set();
-  const today = new Date();
-  const cutoff = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 6);
-  for (const m of messages) {
-    if (m.role !== "user" || !m.created_at) continue;
-    const d = new Date(m.created_at);
-    if (d >= cutoff) week.add(d.toDateString());
-  }
-  const n = week.size;
-  const box = el("streak");
-  if (n === 0) {
-    box.hidden = true;
-    return;
-  }
-  box.textContent =
-    n === 7
-      ? "You've written every day this week."
-      : `You've written on ${n} of the last 7 days.`;
-  box.hidden = false;
-}
-
-/** "Today", "Yesterday", or "Tue 2 Sep" — how a person refers to a day. */
-function dayLabel(iso) {
-  if (!iso) return "";
-  const d = new Date(iso);
-  const midnight = (x) =>
-    new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
-  const days = Math.round((midnight(new Date()) - midnight(d)) / 86400000);
-  if (days === 0) return "Today";
-  if (days === 1) return "Yesterday";
-  return d.toLocaleDateString(undefined, {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-    ...(d.getFullYear() === new Date().getFullYear() ? {} : { year: "numeric" }),
-  });
-}
-
-let lastDay = null;
-
-/** Insert a date heading when the day changes. */
-function dayDivider(iso) {
-  const label = dayLabel(iso);
-  if (!label || label === lastDay) return;
-  lastDay = label;
-  const div = document.createElement("div");
-  div.className = "day-divider";
-  div.innerHTML = `<span></span>`;
-  div.firstChild.textContent = label;
-  log.appendChild(div);
-}
-
-function bubble(role, text) {
-  empty.hidden = true;
-  const div = document.createElement("div");
-  div.className = `bubble bubble--${role}`;
-  div.textContent = text;
-  log.appendChild(div);
-  log.scrollTop = log.scrollHeight;
-  return div;
-}
-
-function typingBubble() {
-  empty.hidden = true;
-  const div = document.createElement("div");
-  div.className = "bubble bubble--assistant bubble--typing";
-  div.innerHTML = "<i></i><i></i><i></i>";
-  div.setAttribute("aria-label", "Assistant is typing");
-  log.appendChild(div);
-  log.scrollTop = log.scrollHeight;
-  return div;
+  snackTimer = setTimeout(() => (el("snackbar").dataset.open = "false"), 5000);
 }
 
 /** Every authenticated call goes through here, so the token is never forgotten. */
@@ -169,75 +69,253 @@ async function api(path, options = {}) {
   return response.json();
 }
 
-// ------------------------------------------------------------------- boot
+/** Wipe every trace of whoever was signed in before.
+ *  The journal lives in the DOM as well as in Firestore, and sign-out has to
+ *  clear both — otherwise the next person to sign in on this device sees the
+ *  previous person's entries until their own data arrives. */
+function resetUserUI() {
+  clearTimeout(saveTimer);
+  openDate = null;
+  lastSaved = "";
+  el("entry").value = "";
+  el("entry-saved").textContent = "";
+  el("prompt").hidden = true;
+  el("reflection").hidden = true;
+  el("reflect-cta").hidden = true;
+  el("thread").hidden = true;
+  el("thread").innerHTML = "";
+  el("say").hidden = true;
+  el("timeline-list").innerHTML = "";
+  el("cal-grid").innerHTML = "";
+  el("week-bars").innerHTML = "";
+  el("week-label").textContent = "";
+  el("insights-report").hidden = true;
+  el("insights-error").hidden = true;
+  el("insights-sample").hidden = true;
+  insightsLoaded = false;
+}
 
-async function start() {
-  let config;
+function showPane(name) {
+  for (const [pane, nav] of [
+    ["pane-entry", "nav-today"],
+    ["pane-timeline", "nav-timeline"],
+    ["pane-insights", "nav-insights"],
+  ]) {
+    const on = pane === `pane-${name}`;
+    el(pane).dataset.active = String(on);
+    el(nav).dataset.active = String(on);
+  }
+}
+
+// ---------------------------------------------------------------- entry
+
+async function openEntry(dateStr) {
+  openDate = dateStr;
+  const { date, weekday } = heading(dateStr);
+  el("entry-date").textContent = date;
+  el("entry-weekday").textContent = weekday;
+  el("entry-saved").textContent = "";
+
+  el("thread").innerHTML = "";
+  el("thread").hidden = true;
+  el("say").hidden = true;
+  el("reflection").hidden = true;
+  el("reflect-cta").hidden = true;
+
+  let data;
   try {
-    config = await fetch("/api/config").then((r) => r.json());
+    data = await api(`/api/entries/${dateStr}`);
+  } catch (error) {
+    toast(error.message);
+    return;
+  }
+
+  el("entry").value = data.entry.text || "";
+  lastSaved = el("entry").value;
+  autosize();
+
+  if (data.entry.reflection) showReflection(data.entry.reflection);
+  else el("reflect-cta").hidden = !el("entry").value.trim();
+
+  (data.thread || []).forEach((m) => addTurn(m.role === "user" ? "user" : "echo", m.text));
+  if (data.thread && data.thread.length) {
+    el("thread").hidden = false;
+    el("say").hidden = false;
+  }
+
+  // The opener belongs to today only — older days already have their answer.
+  el("prompt").hidden = true;
+  if (dateStr === today() && !el("entry").value.trim()) loadOpener();
+}
+
+function showReflection(text) {
+  el("reflection-text").textContent = text;
+  el("reflection").hidden = false;
+  el("reflect-cta").hidden = true;
+}
+
+function addTurn(role, text) {
+  const div = document.createElement("div");
+  div.className = `turn turn--${role}`;
+  div.textContent = text;
+  el("thread").appendChild(div);
+  el("thread").hidden = false;
+  return div;
+}
+
+function autosize() {
+  const box = el("entry");
+  box.style.height = "auto";
+  box.style.height = `${Math.max(220, box.scrollHeight)}px`;
+}
+
+async function loadOpener() {
+  try {
+    const { opener, from } = await api("/api/opener");
+    el("prompt-text").textContent = opener;
+    el("prompt-from").textContent = from
+      ? `From ${heading(from).date}`
+      : "To get you started";
+    el("prompt").hidden = false;
   } catch {
-    toast("Couldn't reach the server.");
+    // A missing opener should never block the page.
+  }
+}
+
+// Autosave: quiet, frequent, and it never calls the model.
+function queueSave() {
+  clearTimeout(saveTimer);
+  el("entry-saved").textContent = "";
+  saveTimer = setTimeout(save, 900);
+}
+
+async function save() {
+  const text = el("entry").value;
+  if (!openDate || text === lastSaved) return;
+  try {
+    const { entry } = await api(`/api/entries/${openDate}`, {
+      method: "PUT",
+      body: JSON.stringify({ text }),
+    });
+    lastSaved = text;
+    el("entry-saved").textContent = text.trim() ? "Saved" : "";
+    // Editing clears an earlier reflection server-side; mirror that here.
+    if (!entry.reflection) {
+      el("reflection").hidden = true;
+      el("reflect-cta").hidden = !text.trim();
+    }
+    refreshCalendar();
+  } catch (error) {
+    el("entry-saved").textContent = "Not saved";
+    toast(error.message);
+  }
+}
+
+// -------------------------------------------------------------- calendar
+
+async function refreshCalendar() {
+  if (!calMonth) calMonth = new Date();
+  const y = calMonth.getFullYear();
+  const m = calMonth.getMonth();
+  const prefix = `${y}-${String(m + 1).padStart(2, "0")}`;
+  el("cal-label").textContent = `${MONTHS[m]} ${y}`;
+
+  let written = [];
+  try {
+    ({ days: written } = await api(`/api/calendar/${prefix}`));
+  } catch {
+    // A calendar that can't load should not take the page with it.
+  }
+  const has = new Set(written);
+
+  const grid = el("cal-grid");
+  grid.innerHTML = "";
+  const first = new Date(y, m, 1);
+  const lead = (first.getDay() + 6) % 7;          // Monday-first
+  const count = new Date(y, m + 1, 0).getDate();
+  const now = today();
+
+  for (let i = 0; i < lead; i++) grid.appendChild(document.createElement("span"));
+
+  for (let d = 1; d <= count; d++) {
+    const dateStr = `${prefix}-${String(d).padStart(2, "0")}`;
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "cal__day";
+    b.textContent = String(d);
+    b.dataset.in = "true";
+    if (has.has(dateStr)) b.dataset.written = "true";
+    if (dateStr === now) b.dataset.today = "true";
+    if (dateStr > now) { b.disabled = true; b.dataset.in = "false"; }
+    else b.addEventListener("click", () => { showPane("entry"); openEntry(dateStr); });
+    grid.appendChild(b);
+  }
+
+  renderWeek(has);
+}
+
+function renderWeek(written) {
+  const bars = el("week-bars");
+  bars.innerHTML = "";
+  const now = new Date();
+  let count = 0;
+
+  // Monday of the current week through Sunday.
+  const monday = new Date(now);
+  monday.setDate(now.getDate() - ((now.getDay() + 6) % 7));
+
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(monday);
+    d.setDate(monday.getDate() + i);
+    const key = iso(d);
+    const span = document.createElement("span");
+    if (written.has(key)) { span.dataset.on = "true"; count++; }
+    if (key === today()) span.dataset.today = "true";
+    bars.appendChild(span);
+  }
+
+  el("week-label").textContent =
+    count === 0 ? "Nothing written this week yet"
+    : count === 1 ? "Written 1 day this week"
+    : `Written ${count} days this week`;
+}
+
+// -------------------------------------------------------------- timeline
+
+async function loadTimeline() {
+  let entries = [];
+  try {
+    ({ entries } = await api("/api/entries"));
+  } catch (error) {
+    toast(error.message);
     return;
   }
 
-  if (!config.apiKey) {
-    toast("Firebase isn't configured yet. See README.");
-    return;
-  }
+  const list = el("timeline-list");
+  list.innerHTML = "";
+  el("timeline-empty").hidden = entries.length > 0;
 
-  auth = getAuth(initializeApp(config));
-
-  onAuthStateChanged(auth, async (user) => {
-    if (!user) {
-      resetUserUI();
-      show("signin");
-      el("account").hidden = true;
-      el("tabs").hidden = true;
-      return;
-    }
-
-    // Clear before the journal is visible, not after the data arrives.
-    resetUserUI();
-    show("chat");
-    el("account").hidden = false;
-    el("tabs").hidden = false;
-
-    const avatar = el("avatar");
-    avatar.textContent = (user.displayName || user.email || "?")
-      .trim()
-      .charAt(0)
-      .toUpperCase();
-
-    try {
-      await api("/api/me");
-      const { messages } = await api("/api/messages");
-      messages.forEach((m) => {
-        dayDivider(m.created_at);
-        bubble(m.role === "user" ? "user" : "assistant", m.text);
-      });
-      empty.hidden = messages.length > 0;
-      renderStreak(messages);
-    } catch (error) {
-      toast(error.message);
-      return;
-    }
-
-    // The zero-blank-page opener: Echo speaks first, from memory.
-    try {
-      const { opener } = await api("/api/opener");
-      dayDivider(new Date().toISOString());
-      const div = bubble("assistant", opener);
-      div.classList.add("bubble--opener");
-    } catch {
-      // A missing opener should never block the journal itself.
-    }
+  entries.slice().reverse().forEach((e) => {
+    const d = parse(e.date);
+    const row = document.createElement("button");
+    row.type = "button";
+    row.className = "day";
+    row.innerHTML =
+      `<span class="day__when"><span class="day__num"></span><span class="day__mon"></span></span>` +
+      `<span class="day__body"><p class="day__text"></p><span class="day__tag"></span></span>`;
+    row.querySelector(".day__num").textContent = String(d.getDate());
+    row.querySelector(".day__mon").textContent = MONTHS[d.getMonth()];
+    row.querySelector(".day__text").textContent = e.text;
+    row.querySelector(".day__tag").textContent = e.reflection ? "Echo replied" : "";
+    row.addEventListener("click", () => { showPane("entry"); openEntry(e.date); });
+    list.appendChild(row);
   });
 }
 
-// --------------------------------------------------------------- insights
+// -------------------------------------------------------------- insights
 
-// Shown only on an account with too little history, always behind the
-// "this is an example" banner. Invented, never presented as the user's.
+let insightsLoaded = false;
+
 const SAMPLE_INSIGHTS = {
   entry_count: 12,
   themes: ["work pressure", "sleep", "a course you started", "calls home"],
@@ -253,36 +331,30 @@ const SAMPLE_INSIGHTS = {
 };
 
 function renderInsights(report) {
-  el("insights-meta").textContent =
-    `Read from your last ${report.entry_count} entries.`;
-
+  el("insights-meta").textContent = `Read from your last ${report.entry_count} entries.`;
   const themes = el("insights-themes");
   themes.innerHTML = "";
   (report.themes || []).forEach((t) => {
     const chip = document.createElement("span");
-    chip.className = "insights__chip";
     chip.textContent = t;
     themes.appendChild(chip);
   });
-
   el("insights-mood").textContent = report.mood_arc;
   el("insights-observation").textContent = report.observation;
   el("insights-suggestion").textContent = report.suggestion;
 }
 
 async function loadInsights(refresh = false) {
-  el("insights-empty").hidden = true;
   el("insights-error").hidden = true;
   el("insights-report").hidden = true;
   el("insights-loading").hidden = false;
 
   try {
-    const path = refresh ? "/api/insights?refresh=true" : "/api/insights";
-    const { insights } = await api(path);
+    const { insights } = await api(refresh ? "/api/insights?refresh=true" : "/api/insights");
     el("insights-loading").hidden = true;
 
-    // Nothing written yet: show a clearly-labelled example rather than a
-    // dead end, so the feature explains itself on a brand-new account.
+    // Nothing written yet: a clearly-labelled example beats a dead end, so
+    // the feature explains itself on a brand-new account.
     if (!insights) {
       renderInsights(SAMPLE_INSIGHTS);
       el("insights-sample").hidden = false;
@@ -305,26 +377,60 @@ async function loadInsights(refresh = false) {
   }
 }
 
-el("tab-journal").addEventListener("click", () => show("chat"));
-el("tab-insights").addEventListener("click", () => {
-  show("insights");
-  if (!insightsLoaded) loadInsights();
-});
-el("insights-refresh").addEventListener("click", () => loadInsights(true));
-el("insights-retry").addEventListener("click", () => loadInsights(true));
+// ------------------------------------------------------------------- boot
+
+async function start() {
+  let config;
+  try {
+    config = await fetch("/api/config").then((r) => r.json());
+  } catch {
+    toast("Couldn't reach the server.");
+    return;
+  }
+  if (!config.apiKey) {
+    toast("Firebase isn't configured yet. See README.");
+    return;
+  }
+
+  auth = getAuth(initializeApp(config));
+
+  onAuthStateChanged(auth, async (user) => {
+    if (!user) {
+      resetUserUI();
+      el("view-signin").dataset.active = "true";
+      el("app").hidden = true;
+      return;
+    }
+
+    resetUserUI();
+    el("view-signin").dataset.active = "false";
+    el("app").hidden = false;
+    showPane("entry");
+
+    el("avatar").textContent = (user.displayName || user.email || "?").trim().charAt(0).toUpperCase();
+    el("nav-email").textContent = user.email || "";
+
+    try {
+      await api("/api/me");
+    } catch (error) {
+      toast(error.message);
+      return;
+    }
+
+    calMonth = new Date();
+    await openEntry(today());
+    refreshCalendar();
+  });
+}
 
 // ---------------------------------------------------------------- actions
 
-// Each failure has a different fix, so say which one happened rather than
-// collapsing them all into "try again".
 const SIGNIN_ERRORS = {
   "auth/unauthorized-domain":
     "This site isn't authorised for sign-in yet. Add it under Firebase " +
     "Authentication > Settings > Authorized domains.",
-  "auth/operation-not-allowed":
-    "Google sign-in isn't switched on for this project yet.",
-  "auth/popup-blocked":
-    "Your browser blocked the sign-in popup. Allow popups for this site and retry.",
+  "auth/operation-not-allowed": "Google sign-in isn't switched on for this project yet.",
+  "auth/popup-blocked": "Your browser blocked the sign-in popup. Allow popups and retry.",
   "auth/invalid-api-key": "The Firebase configuration for this site is wrong.",
   "auth/api-key-not-valid": "The Firebase configuration for this site is wrong.",
   "auth/network-request-failed": "Couldn't reach Google. Check your connection.",
@@ -347,69 +453,75 @@ el("confirm-ok").addEventListener("click", () => {
   signOut(auth);
 });
 
-el("clear").addEventListener("click", async () => {
+el("nav-today").addEventListener("click", () => { showPane("entry"); openEntry(today()); });
+el("nav-timeline").addEventListener("click", () => { showPane("timeline"); loadTimeline(); });
+el("nav-insights").addEventListener("click", () => {
+  showPane("insights");
+  if (!insightsLoaded) loadInsights();
+});
+el("insights-refresh").addEventListener("click", () => loadInsights(true));
+el("insights-retry").addEventListener("click", () => loadInsights(true));
+
+el("cal-prev").addEventListener("click", () => {
+  calMonth.setMonth(calMonth.getMonth() - 1);
+  refreshCalendar();
+});
+el("cal-next").addEventListener("click", () => {
+  calMonth.setMonth(calMonth.getMonth() + 1);
+  refreshCalendar();
+});
+
+el("entry").addEventListener("input", () => { autosize(); queueSave(); });
+el("entry").addEventListener("blur", save);
+
+el("reflect").addEventListener("click", async () => {
+  if (busy) return;
+  busy = true;
+  const btn = el("reflect");
+  btn.disabled = true;
+  btn.textContent = "Reading…";
   try {
-    await api("/api/messages", { method: "DELETE" });
-    log.querySelectorAll(".bubble").forEach((b) => b.remove());
-    empty.hidden = false;
-    insightsLoaded = false;
+    await save();
+    const { reflection } = await api(`/api/entries/${openDate}/reflect`, { method: "POST" });
+    showReflection(reflection);
   } catch (error) {
     toast(error.message);
+  } finally {
+    busy = false;
+    btn.disabled = false;
+    btn.textContent = "Ask Echo to read this";
   }
 });
 
-composer.addEventListener("submit", async (event) => {
+el("talk").addEventListener("click", () => {
+  el("thread").hidden = false;
+  el("say").hidden = false;
+  el("say-text").focus();
+});
+
+el("say").addEventListener("submit", async (event) => {
   event.preventDefault();
-  const text = messageBox.value.trim();
+  const text = el("say-text").value.trim();
   if (!text || busy) return;
 
   busy = true;
-  sendBtn.disabled = true;
-  messageBox.value = "";
-  messageBox.style.height = "auto";
-
-  dayDivider(new Date().toISOString());
-  bubble("user", text);
-  const typing = typingBubble();
+  el("say-text").value = "";
+  addTurn("user", text);
+  const waiting = addTurn("echo", "…");
 
   try {
-    const { reply } = await api("/api/chat", {
+    const { reply } = await api(`/api/entries/${openDate}/thread`, {
       method: "POST",
       body: JSON.stringify({ message: text }),
     });
-    typing.remove();
-    bubble("assistant", reply);
+    waiting.textContent = reply;
   } catch (error) {
-    typing.remove();
-    bubble("error", error.message);
+    waiting.remove();
+    addTurn("error", error.message);
   } finally {
     busy = false;
-    sendBtn.disabled = false;
-    messageBox.focus();
+    el("say-text").focus();
   }
-});
-
-// First-run starters: one tap puts an opening in the box, ready to finish.
-el("starters").addEventListener("click", (event) => {
-  const chip = event.target.closest(".starters__chip");
-  if (!chip) return;
-  messageBox.value = `${chip.textContent.replace(/…$/, "")} `;
-  messageBox.focus();
-  messageBox.dispatchEvent(new Event("input"));
-});
-
-// Enter sends, Shift+Enter makes a new line.
-messageBox.addEventListener("keydown", (event) => {
-  if (event.key === "Enter" && !event.shiftKey) {
-    event.preventDefault();
-    composer.requestSubmit();
-  }
-});
-
-// Grow the box with the text.
-messageBox.addEventListener("input", () => {
-  messageBox.style.height = "auto";
-  messageBox.style.height = `${Math.min(messageBox.scrollHeight, 160)}px`;
 });
 
 start();

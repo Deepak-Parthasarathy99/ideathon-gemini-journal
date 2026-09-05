@@ -7,143 +7,207 @@
 <meta name="description" content="A private journal that writes back and remembers what you told it.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&display=swap">
 <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
 
-<div class="app-shell">
+<!-- Signed out -->
+<main class="view signin" id="view-signin" data-active="true">
+  <div class="signin__card">
+    <div class="brand brand--lg">
+      <span class="brand__mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+      </span>
+      <span class="brand__name">Echo</span>
+    </div>
+    <h1 class="signin__title">A journal that remembers</h1>
+    <p class="signin__lead">
+      Write a little each day. Echo reads it back to you — picking up where you
+      left off, and showing you the patterns you can't see one entry at a time.
+      Everything you write stays private to your account.
+    </p>
+    <button id="signin" class="btn btn--primary" type="button">Continue with Google</button>
+  </div>
+</main>
 
-  <header class="md-top-app-bar">
-    <h1 class="md-top-app-bar__title md-title-large">Echo</h1>
+<!-- Signed in -->
+<div class="app" id="app" hidden>
 
-    <div class="tabs" id="tabs" hidden role="tablist" aria-label="Views">
-      <button id="tab-journal" class="tabs__tab" type="button" role="tab"
-              data-active="true" aria-selected="true" aria-controls="view-chat">Journal</button>
-      <button id="tab-insights" class="tabs__tab" type="button" role="tab"
-              data-active="false" aria-selected="false" aria-controls="view-insights">Insights</button>
+  <!-- Nav -->
+  <nav class="nav" aria-label="Journal">
+    <div class="brand">
+      <span class="brand__mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+      </span>
+      <span class="brand__name">Echo</span>
     </div>
 
-    <div id="account" hidden>
-      <button id="clear" class="md-button md-button--text" type="button">Clear journal</button>
-      <button id="signout" class="md-button md-button--text" type="button">Sign out</button>
-      <span id="avatar" class="md-avatar" aria-hidden="true"></span>
-    </div>
-  </header>
-
-  <!-- Signed out -->
-  <main class="view signin" id="view-signin" data-active="true">
-    <div class="signin__card">
-      <h2 class="md-headline-small">A journal that remembers</h2>
-      <p class="signin__lead md-body-large">
-        Write a little each day. Echo writes back, picks up where you left off,
-        and shows you the patterns you can't see one entry at a time.
-        Everything you write is private to your account.
-      </p>
-      <button id="signin" class="md-button md-button--filled" type="button">
-        Continue with Google
+    <div class="nav__group">
+      <button class="nav__item" id="nav-today" type="button" data-active="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 8v4l3 2"/><circle cx="12" cy="12" r="9"/></svg>
+        Today
+      </button>
+      <button class="nav__item" id="nav-timeline" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
+        Timeline
+      </button>
+      <button class="nav__item" id="nav-insights" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 17l5-5 4 3 5-7 4 4"/></svg>
+        Insights
       </button>
     </div>
-  </main>
 
-  <!-- Signed in -->
-  <main class="view chat" id="view-chat">
-    <p class="streak" id="streak" hidden></p>
+    <div class="nav__rule"></div>
 
-    <div class="chat__log" id="log" role="log" aria-live="polite" aria-label="Conversation">
-      <div class="chat__empty" id="empty">
-        <p class="md-title-medium">This page is yours</p>
-        <p class="md-body-medium">Write whatever's on your mind. Echo listens, and remembers.</p>
-        <div class="starters" id="starters">
-          <button class="starters__chip" type="button">Today felt…</button>
-          <button class="starters__chip" type="button">Something on my mind is…</button>
-          <button class="starters__chip" type="button">I keep putting off…</button>
-        </div>
+    <div class="cal">
+      <div class="cal__head">
+        <span id="cal-label">—</span>
+        <span class="cal__nav">
+          <button id="cal-prev" type="button" aria-label="Previous month">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
+          </button>
+          <button id="cal-next" type="button" aria-label="Next month">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg>
+          </button>
+        </span>
       </div>
+      <div class="cal__dow"><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span><span>S</span></div>
+      <div class="cal__grid" id="cal-grid"></div>
     </div>
 
-    <form class="composer" id="composer">
-      <label class="visually-hidden" for="message">Your message</label>
-      <div class="md-text-field">
-        <textarea id="message" name="message" rows="1" maxlength="4000"
-                  placeholder="Write about your day…" autocomplete="off"></textarea>
-      </div>
-      <button class="composer__send" id="send" type="submit" aria-label="Send message">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-          <path d="M3 20.5v-6l8-2.5-8-2.5v-6l19 8.5-19 8.5z"/>
-        </svg>
+    <div class="week">
+      <div class="week__bars" id="week-bars"></div>
+      <p class="week__label" id="week-label"></p>
+    </div>
+
+    <div class="nav__foot">
+      <span class="avatar" id="avatar" aria-hidden="true"></span>
+      <span class="nav__email" id="nav-email"></span>
+      <button id="signout" class="iconbtn" type="button" aria-label="Sign out">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>
       </button>
-    </form>
-  </main>
-
-  <!-- Insights -->
-  <main class="view insights" id="view-insights">
-    <div class="insights__scroll">
-      <div class="insights__empty" id="insights-empty" hidden>
-        <p class="md-title-medium">Not enough written yet</p>
-        <p class="md-body-medium">Come back after a few entries — Echo needs at least three to see a pattern.</p>
-      </div>
-
-      <div class="insights__empty" id="insights-error" hidden>
-        <p class="md-title-medium">Couldn't read your journal just now</p>
-        <p class="md-body-medium" id="insights-error-detail"></p>
-        <button id="insights-retry" class="md-button md-button--text" type="button">Try again</button>
-      </div>
-
-      <div class="insights__loading" id="insights-loading" hidden>
-        <p class="md-body-medium">Reading back through your journal…</p>
-      </div>
-
-      <div id="insights-report" hidden>
-        <div class="insights__sample" id="insights-sample" hidden>
-          <p class="md-title-medium">This is an example</p>
-          <p class="md-body-medium">You haven't written enough yet, so here's what Echo will show you
-            once you have. Every word below is made up.</p>
-        </div>
-
-        <p class="insights__meta md-body-medium" id="insights-meta"></p>
-
-        <section class="insights__card">
-          <h3 class="md-title-medium">What keeps coming up</h3>
-          <div class="insights__chips" id="insights-themes"></div>
-        </section>
-
-        <section class="insights__card">
-          <h3 class="md-title-medium">How the mood has moved</h3>
-          <p class="md-body-large" id="insights-mood"></p>
-        </section>
-
-        <section class="insights__card insights__card--primary">
-          <h3 class="md-title-medium">Something you might not have noticed</h3>
-          <p class="md-body-large" id="insights-observation"></p>
-        </section>
-
-        <section class="insights__card">
-          <h3 class="md-title-medium">Worth trying</h3>
-          <p class="md-body-large" id="insights-suggestion"></p>
-        </section>
-
-        <button id="insights-refresh" class="md-button md-button--text" type="button">
-          Re-read my journal
-        </button>
-      </div>
     </div>
-  </main>
+  </nav>
 
+  <!-- The page -->
+  <main class="page" id="page">
+
+    <!-- Entry -->
+    <section class="pane" id="pane-entry" data-active="true">
+      <div class="pane__scroll">
+        <div class="col">
+          <header class="entry__head">
+            <h1 class="entry__date" id="entry-date">—</h1>
+            <span class="entry__weekday" id="entry-weekday"></span>
+            <span class="entry__saved" id="entry-saved"></span>
+          </header>
+
+          <div class="prompt" id="prompt" hidden>
+            <svg class="prompt__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>
+            <div>
+              <p class="prompt__from" id="prompt-from">Picking up from your last entry</p>
+              <p class="prompt__text" id="prompt-text"></p>
+            </div>
+          </div>
+
+          <label class="visually-hidden" for="entry">Your entry</label>
+          <textarea id="entry" class="entry__text" placeholder="Write about your day…" spellcheck="true"></textarea>
+
+          <div class="reflection" id="reflection" hidden>
+            <p class="reflection__label">Echo's reflection</p>
+            <p class="reflection__text" id="reflection-text"></p>
+            <button class="btn btn--quiet" id="talk" type="button">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+              Talk this through
+            </button>
+          </div>
+
+          <div class="reflect-cta" id="reflect-cta" hidden>
+            <button class="btn btn--primary" id="reflect" type="button">Ask Echo to read this</button>
+            <span class="reflect-cta__hint">Your writing is saved either way.</span>
+          </div>
+
+          <div class="thread" id="thread" hidden></div>
+
+          <form class="say" id="say" hidden>
+            <label class="visually-hidden" for="say-text">Reply to Echo</label>
+            <input id="say-text" type="text" maxlength="4000" placeholder="Say more…" autocomplete="off">
+            <button class="iconbtn iconbtn--filled" type="submit" aria-label="Send">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+            </button>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <!-- Timeline -->
+    <section class="pane" id="pane-timeline">
+      <div class="pane__scroll">
+        <div class="col">
+          <h1 class="pane__title">Timeline</h1>
+          <div id="timeline-list"></div>
+          <p class="muted" id="timeline-empty" hidden>Nothing written yet. Start with today.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Insights -->
+    <section class="pane" id="pane-insights">
+      <div class="pane__scroll">
+        <div class="col">
+          <h1 class="pane__title">Insights</h1>
+
+          <div class="note" id="insights-sample" hidden>
+            <p class="note__title">This is an example</p>
+            <p class="note__body">You haven't written enough yet, so here's what Echo will show you once you have. Every word below is made up.</p>
+          </div>
+
+          <p class="muted" id="insights-loading" hidden>Reading back through your journal…</p>
+
+          <div class="note note--warn" id="insights-error" hidden>
+            <p class="note__title">Couldn't read your journal just now</p>
+            <p class="note__body" id="insights-error-detail"></p>
+            <button class="btn btn--quiet" id="insights-retry" type="button">Try again</button>
+          </div>
+
+          <div id="insights-report" hidden>
+            <p class="muted" id="insights-meta"></p>
+            <section class="card">
+              <h2>What keeps coming up</h2>
+              <div class="chips" id="insights-themes"></div>
+            </section>
+            <section class="card">
+              <h2>How the mood has moved</h2>
+              <p id="insights-mood"></p>
+            </section>
+            <section class="card card--accent">
+              <h2>Something you might not have noticed</h2>
+              <p id="insights-observation"></p>
+            </section>
+            <section class="card">
+              <h2>Worth trying</h2>
+              <p id="insights-suggestion"></p>
+            </section>
+            <button class="btn btn--quiet" id="insights-refresh" type="button">Re-read my journal</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
 </div>
 
-<dialog class="md-dialog" id="confirm-signout">
-  <h2 class="md-title-large">Sign out?</h2>
-  <p class="md-body-medium">Your journal stays saved. You'll need to sign in again to read it.</p>
-  <div class="md-dialog__actions">
-    <button id="confirm-cancel" class="md-button md-button--text" type="button">Stay</button>
-    <button id="confirm-ok" class="md-button md-button--filled" type="button">Sign out</button>
+<dialog class="dialog" id="confirm-signout">
+  <h2>Sign out?</h2>
+  <p>Your journal stays saved. You'll need to sign in again to read it.</p>
+  <div class="dialog__actions">
+    <button id="confirm-cancel" class="btn btn--quiet" type="button">Stay</button>
+    <button id="confirm-ok" class="btn btn--primary" type="button">Sign out</button>
   </div>
 </dialog>
 
-<div class="md-snackbar" id="snackbar" role="status" data-open="false">
-  <span id="snackbar-text" class="md-body-medium"></span>
-</div>
+<div class="snackbar" id="snackbar" role="status" data-open="false"><span id="snackbar-text"></span></div>
 
 <script type="module" src="/static/app.js"></script>
 </body>

@@ -1,10 +1,20 @@
 """Firestore access, always scoped to one user.
 
+The unit of storage is an ENTRY: one piece of writing belonging to one day,
+at users/{uid}/entries/{YYYY-MM-DD}. Echo's reflection is a field on that
+entry, not a separate message — which is the whole difference between a
+journal and a chat log.
+
+A "talk this through" exchange hangs off an entry as a subcollection, so a
+conversation is a branch of a day's writing rather than the shape of the
+whole app.
+
 Cloud Run throws the container away between requests, so anything worth
 keeping lands here immediately. Every read and write below is keyed by uid,
 which is where the per-user isolation actually comes from.
 """
 
+import re
 from datetime import datetime, timezone
 
 from google.cloud import firestore
@@ -12,6 +22,20 @@ from google.cloud import firestore
 from .config import settings
 
 _client: firestore.Client | None = None
+
+# The browser tells us which day it is where the person actually is —
+# a server in UTC would file an evening entry in Chennai under tomorrow.
+DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+
+def valid_date(value: str) -> bool:
+    if not value or not DATE_RE.match(value):
+        return False
+    try:
+        datetime.strptime(value, "%Y-%m-%d")
+    except ValueError:
+        return False
+    return True
 
 
 def client() -> firestore.Client:
@@ -23,6 +47,10 @@ def client() -> firestore.Client:
 
 def _user_doc(uid: str):
     return client().collection("users").document(uid)
+
+
+def _entries(uid: str):
+    return _user_doc(uid).collection("entries")
 
 
 def _clean(data: dict) -> dict:
@@ -46,64 +74,132 @@ def touch_user(uid: str, email: str | None, name: str | None) -> None:
     )
 
 
-def add_message(uid: str, role: str, text: str) -> None:
-    """Append one turn of the journal for this user."""
-    _user_doc(uid).collection("messages").add(
-        _clean(
-            {
-                "role": role,
-                "text": text,
-                "created_at": datetime.now(timezone.utc),
-            }
-        )
+# --- Entries ---------------------------------------------------------------
+
+
+def _row(doc) -> dict:
+    data = doc.to_dict() or {}
+    updated = data.get("updated_at")
+    return {
+        "date": doc.id,
+        "text": data.get("text", ""),
+        "reflection": data.get("reflection"),
+        "updated_at": updated.isoformat() if updated else None,
+    }
+
+
+def get_entry(uid: str, date: str) -> dict | None:
+    doc = _entries(uid).document(date).get()
+    return _row(doc) if doc.exists else None
+
+
+def save_entry(uid: str, date: str, text: str) -> dict:
+    """Create or replace the writing for one day.
+
+    Editing the text clears any reflection: Echo answered what was there
+    before, and leaving a stale response attached to changed writing would
+    be worse than showing none.
+    """
+    existing = get_entry(uid, date)
+    changed = existing is None or existing["text"] != text
+
+    payload = {
+        "text": text,
+        "updated_at": datetime.now(timezone.utc),
+    }
+    if existing is None:
+        payload["created_at"] = datetime.now(timezone.utc)
+    if changed:
+        payload["reflection"] = firestore.DELETE_FIELD
+
+    _entries(uid).document(date).set(_clean(payload), merge=True)
+    return {"date": date, "text": text, "reflection": None if changed else (existing or {}).get("reflection")}
+
+
+def set_reflection(uid: str, date: str, text: str) -> None:
+    _entries(uid).document(date).set(
+        _clean({"reflection": text, "reflected_at": datetime.now(timezone.utc)}),
+        merge=True,
     )
 
 
-def recent_messages(uid: str, limit: int = 50) -> list[dict]:
-    """Most recent turns, oldest first — the order a chat window wants."""
-    snapshot = (
-        _user_doc(uid)
-        .collection("messages")
-        .order_by("created_at", direction=firestore.Query.DESCENDING)
+def list_entries(uid: str, limit: int = 30) -> list[dict]:
+    """Recent entries, oldest first — the order everything downstream wants.
+
+    Ordered by document id, which is the date, so no index is needed and no
+    query can disagree with the calendar.
+    """
+    docs = list(
+        _entries(uid)
+        .order_by("__name__", direction=firestore.Query.DESCENDING)
         .limit(limit)
         .stream()
     )
-    rows = []
-    for doc in snapshot:
-        data = doc.to_dict()
-        created = data.get("created_at")
-        rows.append(
-            {
-                "id": doc.id,
-                "role": data.get("role"),
-                "text": data.get("text"),
-                "created_at": created.isoformat() if created else None,
-            }
-        )
+    rows = [_row(d) for d in docs if (d.to_dict() or {}).get("text")]
     rows.reverse()
     return rows
 
 
-def user_entries(uid: str, limit: int = 30) -> list[dict]:
-    """The journal itself: the user's own words, oldest first.
+def written_days(uid: str, prefix: str) -> list[str]:
+    """Which days in a month have writing. `prefix` is 'YYYY-MM'.
 
-    Every message the user sends IS a journal entry — there is no separate
-    collection to fall out of sync with the transcript.
+    A range over document ids: everything from 'YYYY-MM-00' up to the
+    character after '9', which covers every day in that month.
     """
-    # Filtered in Python rather than with a where(): combining where and
-    # order_by in Firestore demands a composite index, and a missing index
-    # fails only in production. Reading twice the limit keeps it correct.
-    recent = recent_messages(uid, limit=limit * 2)
-    entries = [
-        {"text": m["text"], "created_at": m["created_at"]}
-        for m in recent
-        if m["role"] == "user"
+    docs = (
+        _entries(uid)
+        .order_by("__name__")
+        .start_at({"__name__": f"{prefix}-00"})
+        .end_at({"__name__": f"{prefix}-:"})
+        .stream()
+    )
+    return [d.id for d in docs if (d.to_dict() or {}).get("text")]
+
+
+def delete_entry(uid: str, date: str) -> None:
+    for msg in _entries(uid).document(date).collection("thread").stream():
+        msg.reference.delete()
+    _entries(uid).document(date).delete()
+
+
+def clear_journal(uid: str) -> int:
+    """Delete everything this person has written. Returns how many days went."""
+    days = list(_entries(uid).stream())
+    for day in days:
+        delete_entry(uid, day.id)
+    for cached in _user_doc(uid).collection("insights").stream():
+        cached.reference.delete()
+    return len(days)
+
+
+# --- The optional exchange hanging off one entry ---------------------------
+
+
+def add_thread_message(uid: str, date: str, role: str, text: str) -> None:
+    _entries(uid).document(date).collection("thread").add(
+        _clean({"role": role, "text": text, "created_at": datetime.now(timezone.utc)})
+    )
+
+
+def thread(uid: str, date: str, limit: int = 40) -> list[dict]:
+    docs = (
+        _entries(uid)
+        .document(date)
+        .collection("thread")
+        .order_by("created_at")
+        .limit(limit)
+        .stream()
+    )
+    return [
+        {"role": (d.to_dict() or {}).get("role"), "text": (d.to_dict() or {}).get("text")}
+        for d in docs
     ]
-    return entries[-limit:]
+
+
+# --- Insights cache --------------------------------------------------------
 
 
 def cached_insights(uid: str, day: str) -> dict | None:
-    """Today's insight report, if it was already generated."""
     doc = _user_doc(uid).collection("insights").document(day).get()
     return doc.to_dict() if doc.exists else None
 
@@ -112,11 +208,3 @@ def save_insights(uid: str, day: str, report: dict) -> None:
     _user_doc(uid).collection("insights").document(day).set(
         _clean({**report, "created_at": datetime.now(timezone.utc)})
     )
-
-
-def clear_messages(uid: str) -> int:
-    """Delete this user's conversation. Returns how many turns went."""
-    docs = list(_user_doc(uid).collection("messages").stream())
-    for doc in docs:
-        doc.reference.delete()
-    return len(docs)

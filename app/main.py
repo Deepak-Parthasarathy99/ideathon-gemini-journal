@@ -1,14 +1,14 @@
 """The one entry point. Serves the interface and the API from a single container.
 
 Request path:
-    browser -> verify Firebase ID token -> agent -> Firestore / Gemini
+    browser -> verify Firebase ID token -> Firestore / Gemini
 
 Cloud Run itself is deployed public so anyone can load the page. The app is
 what refuses to do anything until a valid token shows up.
 """
 
 import logging
-from datetime import date
+from datetime import date as date_type
 
 from fastapi import FastAPI, HTTPException, status
 from fastapi.responses import FileResponse, JSONResponse
@@ -49,11 +49,32 @@ def public_config() -> dict:
     return settings.web_config()
 
 
-# --- API -------------------------------------------------------------------
+# --- Shapes ----------------------------------------------------------------
 
 
-class ChatRequest(BaseModel):
+class EntryBody(BaseModel):
+    text: str = Field(max_length=20000)
+
+
+class ThreadBody(BaseModel):
     message: str = Field(min_length=1, max_length=4000)
+
+
+def _check_date(value: str) -> str:
+    if not db.valid_date(value):
+        raise HTTPException(status_code=400, detail="That isn't a date we understand.")
+    return value
+
+
+def _rate_limit(uid: str) -> None:
+    if not limits.allow(uid, settings.rate_limit_per_minute):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="You're going faster than we can answer. Wait a moment.",
+        )
+
+
+# --- Account ---------------------------------------------------------------
 
 
 @app.get("/api/me")
@@ -62,70 +83,119 @@ def me(user: User = CurrentUser) -> dict:
     return user.as_dict()
 
 
-@app.get("/api/messages")
-def get_messages(user: User = CurrentUser) -> dict:
-    return {"messages": db.recent_messages(user.uid)}
+# --- Entries ---------------------------------------------------------------
 
 
-@app.delete("/api/messages")
-def delete_messages(user: User = CurrentUser) -> dict:
-    return {"deleted": db.clear_messages(user.uid)}
+@app.get("/api/entries")
+def recent_entries(user: User = CurrentUser) -> dict:
+    return {"entries": db.list_entries(user.uid, limit=30)}
 
 
-@app.post("/api/chat")
-async def chat(body: ChatRequest, user: User = CurrentUser) -> dict:
-    if not limits.allow(user.uid, settings.rate_limit_per_minute):
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="You're sending messages faster than we can answer. Wait a moment.",
-        )
+@app.get("/api/entries/{date}")
+def one_entry(date: str, user: User = CurrentUser) -> dict:
+    date = _check_date(date)
+    entry = db.get_entry(user.uid, date) or {"date": date, "text": "", "reflection": None}
+    return {"entry": entry, "thread": db.thread(user.uid, date)}
 
-    message = body.message.strip()
 
-    # Continuity is the product: the companion sees the recent transcript
-    # (multi-turn feel) and the last few journal entries before this one.
-    recent = db.recent_messages(user.uid, limit=10)
-    past = db.user_entries(user.uid, limit=5)
-    context_lines = [
-        f"[{(e['created_at'] or '')[:10]}] they wrote: {e['text']}" for e in past
-    ] + [f"{m['role']}: {m['text']}" for m in recent[-6:]]
-    context = "\n".join(context_lines)
+@app.put("/api/entries/{date}")
+def write_entry(date: str, body: EntryBody, user: User = CurrentUser) -> dict:
+    """Autosave. Cheap, frequent, and it never calls the model."""
+    date = _check_date(date)
+    return {"entry": db.save_entry(user.uid, date, body.text.strip())}
 
-    db.add_message(user.uid, "user", message)
 
-    try:
-        reply = await ask(user.uid, message, context)
-    except Exception:
-        # Never leak a stack trace to the browser.
-        log.exception("Agent failed for uid=%s", user.uid)
+@app.delete("/api/entries")
+def clear_journal(user: User = CurrentUser) -> dict:
+    return {"deleted": db.clear_journal(user.uid)}
+
+
+@app.get("/api/calendar/{month}")
+def calendar(month: str, user: User = CurrentUser) -> dict:
+    """Which days in a 'YYYY-MM' month have writing."""
+    if not db.valid_date(f"{month}-01"):
+        raise HTTPException(status_code=400, detail="That isn't a month we understand.")
+    return {"days": db.written_days(user.uid, month)}
+
+
+# --- Echo ------------------------------------------------------------------
+
+
+@app.post("/api/entries/{date}/reflect")
+async def reflect(date: str, user: User = CurrentUser) -> dict:
+    """Echo reads one day's writing and answers it once."""
+    date = _check_date(date)
+    entry = db.get_entry(user.uid, date)
+    if not entry or not entry["text"].strip():
+        raise HTTPException(status_code=400, detail="Write something first.")
+    if entry.get("reflection"):
+        return {"reflection": entry["reflection"], "cached": True}
+
+    _rate_limit(user.uid)
+    past = [e for e in db.list_entries(user.uid, limit=8) if e["date"] != date]
+
+    text = await journal.reflect(entry["text"], past)
+    if text is None:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="The assistant didn't respond. Try again in a moment.",
+            detail="Echo couldn't answer just now. Your writing is saved.",
         )
 
-    db.add_message(user.uid, "assistant", reply)
+    db.set_reflection(user.uid, date, text)
+    return {"reflection": text, "cached": False}
+
+
+@app.post("/api/entries/{date}/thread")
+async def talk(date: str, body: ThreadBody, user: User = CurrentUser) -> dict:
+    """The opt-in exchange about one entry."""
+    date = _check_date(date)
+    entry = db.get_entry(user.uid, date)
+    if not entry:
+        raise HTTPException(status_code=404, detail="There's no entry for that day.")
+
+    _rate_limit(user.uid)
+    message = body.message.strip()
+
+    history = db.thread(user.uid, date)
+    context_lines = [f"Their entry for {date}:\n{entry['text']}"]
+    if entry.get("reflection"):
+        context_lines.append(f"You already said:\n{entry['reflection']}")
+    context_lines += [f"{m['role']}: {m['text']}" for m in history[-6:]]
+
+    db.add_thread_message(user.uid, date, "user", message)
+    try:
+        reply = await ask(user.uid, message, "\n\n".join(context_lines))
+    except Exception:
+        log.exception("Thread reply failed for uid=%s", user.uid)
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Echo didn't respond. Try again in a moment.",
+        )
+
+    db.add_thread_message(user.uid, date, "assistant", reply)
     return {"reply": reply}
-
-
-# --- The two features beyond the baseline ----------------------------------
 
 
 @app.get("/api/opener")
 async def get_opener(user: User = CurrentUser) -> dict:
-    """One personal question to start the session — never a blank page.
+    """One personal question drawn from recent entries — never a blank page.
 
     Deliberately never fails: journal.opener falls back to a generic
     question on any model hiccup.
     """
-    entries = db.user_entries(user.uid, limit=5)
-    return {"opener": await journal.opener(entries), "has_history": bool(entries)}
+    entries = db.list_entries(user.uid, limit=5)
+    text = await journal.opener(entries)
+    return {
+        "opener": text,
+        "from": entries[-1]["date"] if entries else None,
+    }
 
 
 @app.get("/api/insights")
 async def get_insights(refresh: bool = False, user: User = CurrentUser) -> dict:
     """Patterns across the recent journal. Cached per day so reopening the
     tab is instant and doesn't re-bill the model."""
-    today = date.today().isoformat()
+    today = date_type.today().isoformat()
 
     if not refresh:
         cached = db.cached_insights(user.uid, today)
@@ -133,16 +203,11 @@ async def get_insights(refresh: bool = False, user: User = CurrentUser) -> dict:
             cached.pop("created_at", None)
             return {"insights": cached, "cached": True}
 
-    entries = db.user_entries(user.uid, limit=30)
+    entries = db.list_entries(user.uid, limit=30)
     if len(entries) < 3:
         return {"insights": None, "reason": "not_enough_entries"}
 
-    if not limits.allow(user.uid, settings.rate_limit_per_minute):
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="Too many requests. Wait a moment.",
-        )
-
+    _rate_limit(user.uid)
     report = await journal.insights(entries)
     if report is None:
         raise HTTPException(
