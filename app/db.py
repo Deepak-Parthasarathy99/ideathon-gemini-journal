@@ -123,8 +123,12 @@ def set_reflection(uid: str, date: str, text: str) -> None:
     )
 
 
-def list_entries(uid: str, limit: int = 30) -> list[dict]:
-    """Recent entries, oldest first — the order everything downstream wants.
+def list_entries(uid: str, limit: int = 30, before: str | None = None) -> list[dict]:
+    """Recent entries, oldest first, which is what everything downstream wants.
+
+    `before` keeps a day's context honest: filling in last Tuesday should
+    read only what existed by last Tuesday. Without it a reflection on an
+    older entry would quote days that had not happened yet.
 
     Read and sorted here rather than ordered by Firestore. Document ids are
     dates, so sorting them as strings is chronological, and doing it in
@@ -133,6 +137,8 @@ def list_entries(uid: str, limit: int = 30) -> list[dict]:
     would want a real ordered query on a stored date field.
     """
     rows = [_row(d) for d in _entries(uid).stream() if (d.to_dict() or {}).get("text")]
+    if before:
+        rows = [r for r in rows if r["date"] < before]
     rows.sort(key=lambda r: r["date"])
     return rows[-limit:]
 

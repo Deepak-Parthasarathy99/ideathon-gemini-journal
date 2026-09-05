@@ -132,9 +132,11 @@ async def reflect(date: str, user: User = CurrentUser) -> dict:
         return {"reflection": entry["reflection"], "cached": True}
 
     _rate_limit(user.uid)
-    past = [e for e in db.list_entries(user.uid, limit=8) if e["date"] != date]
+    # Only what existed by that day. Filling in an older entry should not
+    # be answered with things written after it.
+    past = db.list_entries(user.uid, limit=8, before=date)
 
-    text = await journal.reflect(entry["text"], past)
+    text = await journal.reflect(entry["text"], past, date)
     if text is None:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,

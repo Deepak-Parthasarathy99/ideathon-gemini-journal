@@ -24,7 +24,7 @@ let busy = false;
 // Short enough that the pause never reads as the app being stuck. Leaving
 // the text box entirely counts as finishing and skips the wait.
 const REFLECT_AFTER_MS = 1800;
-const REFLECT_MIN_CHARS = 40;
+const REFLECT_MIN_CHARS = 25;
 
 // --------------------------------------------------------------- dates
 // The browser owns the notion of "today": a server in UTC would file an
