@@ -126,34 +126,28 @@ def set_reflection(uid: str, date: str, text: str) -> None:
 def list_entries(uid: str, limit: int = 30) -> list[dict]:
     """Recent entries, oldest first — the order everything downstream wants.
 
-    Ordered by document id, which is the date, so no index is needed and no
-    query can disagree with the calendar.
+    Read and sorted here rather than ordered by Firestore. Document ids are
+    dates, so sorting them as strings is chronological, and doing it in
+    Python needs no index and cannot disagree with the calendar. A journal
+    is tens or hundreds of documents; if one ever ran to thousands this
+    would want a real ordered query on a stored date field.
     """
-    docs = list(
-        _entries(uid)
-        .order_by("__name__", direction=firestore.Query.DESCENDING)
-        .limit(limit)
-        .stream()
-    )
-    rows = [_row(d) for d in docs if (d.to_dict() or {}).get("text")]
-    rows.reverse()
-    return rows
+    rows = [_row(d) for d in _entries(uid).stream() if (d.to_dict() or {}).get("text")]
+    rows.sort(key=lambda r: r["date"])
+    return rows[-limit:]
 
 
 def written_days(uid: str, prefix: str) -> list[str]:
     """Which days in a month have writing. `prefix` is 'YYYY-MM'.
 
-    A range over document ids: everything from 'YYYY-MM-00' up to the
-    character after '9', which covers every day in that month.
+    Filtered in Python for the same reason as list_entries: no index, and
+    no cursor syntax to get wrong.
     """
-    docs = (
-        _entries(uid)
-        .order_by("__name__")
-        .start_at({"__name__": f"{prefix}-00"})
-        .end_at({"__name__": f"{prefix}-:"})
-        .stream()
+    return sorted(
+        d.id
+        for d in _entries(uid).stream()
+        if d.id.startswith(prefix) and (d.to_dict() or {}).get("text")
     )
-    return [d.id for d in docs if (d.to_dict() or {}).get("text")]
 
 
 def delete_entry(uid: str, date: str) -> None:
