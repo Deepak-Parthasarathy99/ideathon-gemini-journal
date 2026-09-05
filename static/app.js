@@ -203,8 +203,10 @@ async function reflectNow() {
   } catch (error) {
     el("thinking").hidden = true;
     el("reflect-hint").hidden = true;
+    el("reflect-failed").textContent = error.message;
     el("reflect-cta").hidden = false;
     console.error("reflection failed:", error.message);
+    toast(error.message);
   } finally {
     busy = false;
   }
