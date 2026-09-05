@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Daybook — a journal that remembers</title>
+<title>Daybook: a journal that remembers</title>
 <meta name="description" content="A private journal that reads back what you wrote. Built for the Google Cloud Run AI Challenge.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -28,23 +28,22 @@
       <h1 class="landing__title">A journal that<br>remembers</h1>
 
       <p class="landing__lead">
-        Most journals forget you between entries. Daybook reads yours back —
-        picking up the thread you left hanging, and showing you the patterns
-        no single day reveals.
+        Write a few lines a day. Daybook remembers what you wrote, picks the
+        thread back up tomorrow, and shows you what keeps returning.
       </p>
 
       <ul class="points">
         <li>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>
-          <span><strong>Never a blank page.</strong> Each day opens with a question drawn from what you last wrote.</span>
+          <span><strong>Never a blank page.</strong> Every day opens with a question about something you wrote before.</span>
         </li>
         <li>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
-          <span><strong>You write, it answers.</strong> One reflection under your entry — not a chat waiting on a reply.</span>
+          <span><strong>Reflect on what you wrote.</strong> Daybook reads your entry and answers once, in its own space below it.</span>
         </li>
         <li>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 17l5-5 4 3 5-7 4 4"/></svg>
-          <span><strong>Patterns across weeks.</strong> Recurring themes and shifts you can't see one entry at a time.</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 20h18L14.5 8.5 11 14l-2.5-3.5z"/></svg>
+          <span><strong>See what keeps coming back.</strong> Daybook reads weeks of your writing and tells you what you return to most, and how it is changing.</span>
         </li>
       </ul>
 
@@ -63,19 +62,14 @@
 
     <div class="landing__preview" aria-hidden="true">
       <div class="peek">
-        <div class="peek__head">
-          <span class="peek__date">Sep 4</span>
-          <span class="peek__day">Friday</span>
-          <span class="peek__saved">Saved</span>
-        </div>
         <div class="peek__prompt">
-          <span class="peek__from">From Sep 2</span>
+          <span class="peek__from">Picking up from your last entry</span>
           <p>How did the hackathon turn out, and did you end up finishing what you were working on?</p>
         </div>
-        <p class="peek__entry">Submitting today. Excited and a bit scared — mostly scared that I'll notice something broken the moment after I hit the button.</p>
+        <p class="peek__entry">Submitting today. Excited and a bit scared, mostly that I'll spot something broken the moment after I hit the button.</p>
         <div class="peek__reflection">
           <span class="peek__label">Reflection</span>
-          <p>That fear of noticing something broken afterwards has shown up before — you said almost the same thing about the demo in August.</p>
+          <p>That fear of spotting something broken afterwards has come up before. You said almost the same thing about the demo in August.</p>
         </div>
       </div>
     </div>
@@ -110,7 +104,7 @@
         Timeline
       </button>
       <button class="nav__item" id="nav-insights" type="button">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 17l5-5 4 3 5-7 4 4"/></svg>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 20h18L14.5 8.5 11 14l-2.5-3.5z"/></svg>
         Insights
       </button>
     </div>
@@ -119,7 +113,7 @@
 
     <div class="cal">
       <div class="cal__head">
-        <span id="cal-label">—</span>
+        <span id="cal-label"></span>
         <span class="cal__nav">
           <button id="cal-prev" type="button" aria-label="Previous month">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
@@ -134,6 +128,7 @@
     </div>
 
     <div class="week">
+      <div class="week__dow"><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span><span>S</span></div>
       <div class="week__bars" id="week-bars"></div>
       <p class="week__label" id="week-label"></p>
     </div>
@@ -155,7 +150,7 @@
       <div class="pane__scroll">
         <div class="col">
           <header class="entry__head">
-            <h1 class="entry__date" id="entry-date">—</h1>
+            <h1 class="entry__date" id="entry-date"></h1>
             <span class="entry__weekday" id="entry-weekday"></span>
             <span class="entry__saved" id="entry-saved"></span>
           </header>
@@ -170,6 +165,13 @@
 
           <label class="visually-hidden" for="entry">Your entry</label>
           <textarea id="entry" class="entry__text" placeholder="Write about your day…" spellcheck="true"></textarea>
+
+          <div class="thinking" id="thinking" hidden aria-live="polite">
+            <p class="reflection__label">Daybook is reading</p>
+            <span class="shimmer"></span>
+            <span class="shimmer"></span>
+            <span class="shimmer shimmer--short"></span>
+          </div>
 
           <div class="reflection" id="reflection" hidden>
             <p class="reflection__label">Daybook's reflection</p>

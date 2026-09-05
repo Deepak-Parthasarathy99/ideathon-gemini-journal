@@ -320,12 +320,53 @@ body {
 
 /* ------------------------------------------------------------------- week */
 
-.week { display: flex; flex-direction: column; gap: 8px; padding: 0 4px; }
-.week__bars { display: flex; gap: 3px; }
-.week__bars span { flex: 1; height: 22px; border-radius: 5px; background: var(--sunken); }
+.week { display: flex; flex-direction: column; gap: 5px; padding: 0 4px; }
+
+/* Named days above the boxes, so a filled square reads as "Tuesday"
+   rather than as an anonymous mark. */
+.week__dow {
+  display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 3px;
+  text-align: center; font-size: 10px; font-weight: 500; color: var(--faint);
+}
+.week__bars { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 3px; }
+.week__bars span { height: 22px; border-radius: 5px; background: var(--sunken); }
 .week__bars span[data-on="true"] { background: var(--accent-line); }
 .week__bars span[data-today="true"] { background: var(--accent); }
-.week__label { margin: 0; font-size: 12px; color: var(--muted); font-weight: 500; }
+.week__label { margin: 3px 0 0; font-size: 12px; color: var(--muted); font-weight: 500; }
+
+/* -------------------------------------------------------------- thinking */
+/* A shape settling into place, not a spinner: the reflection is about to
+   appear here, so the wait should look like this space filling up. */
+
+.thinking {
+  border-left: 2px solid var(--accent-line); padding-left: 18px;
+  display: flex; flex-direction: column; gap: 9px; align-items: flex-start;
+}
+.thinking .reflection__label { color: var(--accent); }
+
+.shimmer {
+  display: block; width: 100%; height: 11px; border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    var(--sunken) 0%,
+    var(--accent-wash) 40%,
+    var(--sunken) 80%
+  );
+  background-size: 220% 100%;
+  animation: sweep 1400ms ease-in-out infinite;
+}
+.shimmer--short { width: 58%; }
+.shimmer:nth-child(3) { animation-delay: 120ms; }
+.shimmer:nth-child(4) { animation-delay: 240ms; }
+
+@keyframes sweep {
+  from { background-position: 120% 0; }
+  to   { background-position: -60% 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shimmer { animation: none; background: var(--sunken); }
+}
 
 /* ------------------------------------------------------------------- page */
 

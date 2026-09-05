@@ -82,6 +82,7 @@ function resetUserUI() {
   el("prompt").hidden = true;
   el("reflection").hidden = true;
   el("reflect-cta").hidden = true;
+  el("thinking").hidden = true;
   el("thread").hidden = true;
   el("thread").innerHTML = "";
   el("say").hidden = true;
@@ -121,6 +122,7 @@ async function openEntry(dateStr) {
   el("say").hidden = true;
   el("reflection").hidden = true;
   el("reflect-cta").hidden = true;
+  el("thinking").hidden = true;
 
   let data;
   try {
@@ -152,6 +154,7 @@ function showReflection(text) {
   el("reflection-text").textContent = text;
   el("reflection").hidden = false;
   el("reflect-cta").hidden = true;
+  el("thinking").hidden = true;
 }
 
 function addTurn(role, text) {
@@ -321,7 +324,7 @@ const SAMPLE_INSIGHTS = {
   themes: ["work pressure", "sleep", "a course you started", "calls home"],
   mood_arc:
     "The first week reads tense and clipped. The last few entries are longer " +
-    "and calmer — the change shows up right after you started walking in the evenings.",
+    "and calmer. The change shows up right after you started walking in the evenings.",
   observation:
     "Sleep appears in eight of the twelve entries, and every day you described " +
     "as difficult followed a night you called restless.",
@@ -479,17 +482,20 @@ el("reflect").addEventListener("click", async () => {
   busy = true;
   const btn = el("reflect");
   btn.disabled = true;
-  btn.textContent = "Reading…";
+  el("reflect-cta").hidden = true;
+  el("thinking").hidden = false;
   try {
     await save();
     const { reflection } = await api(`/api/entries/${openDate}/reflect`, { method: "POST" });
+    el("thinking").hidden = true;
     showReflection(reflection);
   } catch (error) {
+    el("thinking").hidden = true;
+    el("reflect-cta").hidden = false;
     toast(error.message);
   } finally {
     busy = false;
     btn.disabled = false;
-    btn.textContent = "Ask Daybook to read this";
   }
 });
 
