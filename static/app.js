@@ -57,7 +57,9 @@ function toast(text) {
  *  clear both — otherwise the next person to sign in on this device sees the
  *  previous person's entries until their own data arrives. */
 function resetUserUI() {
-  log.querySelectorAll(".bubble").forEach((b) => b.remove());
+  log.querySelectorAll(".bubble, .day-divider").forEach((b) => b.remove());
+  lastDay = null;
+  el("streak").hidden = true;
   empty.hidden = false;
   insightsLoaded = false;
   el("insights-report").hidden = true;
@@ -66,6 +68,62 @@ function resetUserUI() {
   el("insights-themes").innerHTML = "";
   ["insights-mood", "insights-observation", "insights-suggestion", "insights-meta"]
     .forEach((id) => (el(id).textContent = ""));
+}
+
+/** How many of the last seven days have an entry.
+ *  Consistency is the thing people lose, so it is worth showing gently —
+ *  a count of days written, never a streak to break. */
+function renderStreak(messages) {
+  const week = new Set();
+  const today = new Date();
+  const cutoff = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 6);
+  for (const m of messages) {
+    if (m.role !== "user" || !m.created_at) continue;
+    const d = new Date(m.created_at);
+    if (d >= cutoff) week.add(d.toDateString());
+  }
+  const n = week.size;
+  const box = el("streak");
+  if (n === 0) {
+    box.hidden = true;
+    return;
+  }
+  box.textContent =
+    n === 7
+      ? "You've written every day this week."
+      : `You've written on ${n} of the last 7 days.`;
+  box.hidden = false;
+}
+
+/** "Today", "Yesterday", or "Tue 2 Sep" — how a person refers to a day. */
+function dayLabel(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  const midnight = (x) =>
+    new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const days = Math.round((midnight(new Date()) - midnight(d)) / 86400000);
+  if (days === 0) return "Today";
+  if (days === 1) return "Yesterday";
+  return d.toLocaleDateString(undefined, {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    ...(d.getFullYear() === new Date().getFullYear() ? {} : { year: "numeric" }),
+  });
+}
+
+let lastDay = null;
+
+/** Insert a date heading when the day changes. */
+function dayDivider(iso) {
+  const label = dayLabel(iso);
+  if (!label || label === lastDay) return;
+  lastDay = label;
+  const div = document.createElement("div");
+  div.className = "day-divider";
+  div.innerHTML = `<span></span>`;
+  div.firstChild.textContent = label;
+  log.appendChild(div);
 }
 
 function bubble(role, text) {
@@ -153,8 +211,12 @@ async function start() {
     try {
       await api("/api/me");
       const { messages } = await api("/api/messages");
-      messages.forEach((m) => bubble(m.role === "user" ? "user" : "assistant", m.text));
+      messages.forEach((m) => {
+        dayDivider(m.created_at);
+        bubble(m.role === "user" ? "user" : "assistant", m.text);
+      });
       empty.hidden = messages.length > 0;
+      renderStreak(messages);
     } catch (error) {
       toast(error.message);
       return;
@@ -163,6 +225,7 @@ async function start() {
     // The zero-blank-page opener: Echo speaks first, from memory.
     try {
       const { opener } = await api("/api/opener");
+      dayDivider(new Date().toISOString());
       const div = bubble("assistant", opener);
       div.classList.add("bubble--opener");
     } catch {
@@ -305,6 +368,7 @@ composer.addEventListener("submit", async (event) => {
   messageBox.value = "";
   messageBox.style.height = "auto";
 
+  dayDivider(new Date().toISOString());
   bubble("user", text);
   const typing = typingBubble();
 

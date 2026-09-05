@@ -7,7 +7,7 @@
 <meta name="description" content="A private journal that writes back and remembers what you told it.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap">
 <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
@@ -48,6 +48,8 @@
 
   <!-- Signed in -->
   <main class="view chat" id="view-chat">
+    <p class="streak" id="streak" hidden></p>
+
     <div class="chat__log" id="log" role="log" aria-live="polite" aria-label="Conversation">
       <div class="chat__empty" id="empty">
         <p class="md-title-medium">This page is yours</p>
