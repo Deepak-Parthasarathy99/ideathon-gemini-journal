@@ -122,6 +122,16 @@ function showPane(name) {
 
 async function openEntry(dateStr) {
   openDate = dateStr;
+
+  // Follow the reader into another month, otherwise just move the mark.
+  const d = parse(dateStr);
+  if (!calMonth || d.getMonth() !== calMonth.getMonth() || d.getFullYear() !== calMonth.getFullYear()) {
+    calMonth = new Date(d.getFullYear(), d.getMonth(), 1);
+    refreshCalendar();
+  } else {
+    markCalendarSelection();
+  }
+
   const { date, weekday } = heading(dateStr);
   el("entry-date").textContent = date;
   el("entry-weekday").textContent = weekday;
@@ -310,6 +320,7 @@ async function refreshCalendar() {
     b.className = "cal__day";
     b.textContent = String(d);
     b.dataset.in = "true";
+    b.dataset.date = dateStr;
     if (has.has(dateStr)) b.dataset.written = "true";
     if (dateStr === now) b.dataset.today = "true";
     if (dateStr > now) { b.disabled = true; b.dataset.in = "false"; }
@@ -317,7 +328,16 @@ async function refreshCalendar() {
     grid.appendChild(b);
   }
 
+  markCalendarSelection();
   renderWeek(has);
+}
+
+/** Which day you are reading, which is not the same as which day it is.
+ *  Today keeps its own ring so it stays findable while you browse. */
+function markCalendarSelection() {
+  document
+    .querySelectorAll(".cal__day")
+    .forEach((b) => (b.dataset.selected = String(b.dataset.date === openDate)));
 }
 
 function renderWeek(written) {

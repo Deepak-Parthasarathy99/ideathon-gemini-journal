@@ -342,7 +342,11 @@ body {
 }
 .cal__day[data-in="true"] { color: var(--text); }
 .cal__day[data-written="true"] { background: var(--accent-wash); color: var(--accent-ink); font-weight: 600; }
-.cal__day[data-today="true"] { background: var(--accent); color: #fff; font-weight: 700; }
+
+/* Today is a ring you can always find; the filled day is the one you are
+   reading, which is usually today but not while you browse. */
+.cal__day[data-today="true"] { box-shadow: inset 0 0 0 1.5px var(--accent); color: var(--text); font-weight: 700; }
+.cal__day[data-selected="true"] { background: var(--accent); color: #fff; font-weight: 700; box-shadow: none; }
 .cal__day:hover:not(:disabled) { background: var(--sunken); }
 .cal__day:disabled { cursor: default; }
 
