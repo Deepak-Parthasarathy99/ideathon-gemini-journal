@@ -20,7 +20,10 @@ SA="${SERVICE}-sa@${PROJECT_ID}.iam.gserviceaccount.com"
 
 # Vertex bills the Cloud project and authenticates as the service account,
 # so no API key is mounted in that mode.
+# An empty value counts as unset here: .env ships the key blank on the
+# Vertex path, and a blank must not read as "use AI Studio".
 USE_VERTEX="${GOOGLE_GENAI_USE_VERTEXAI:-TRUE}"
+[ -z "${USE_VERTEX}" ] && USE_VERTEX="TRUE"
 LOCATION="${GOOGLE_CLOUD_LOCATION:-us-central1}"
 if [ "${USE_VERTEX}" = "TRUE" ]; then
   SECRET_FLAG=""
@@ -41,6 +44,11 @@ if [ -n "${missing}" ]; then
 fi
 
 echo "Deploying ${SERVICE} to ${REGION} in ${PROJECT_ID}"
+if [ "${USE_VERTEX}" = "TRUE" ]; then
+  echo "Model backend: Vertex AI (${LOCATION}), billed to the Cloud project"
+else
+  echo "Model backend: AI Studio, key from Secret Manager"
+fi
 
 gcloud run deploy "${SERVICE}" \
   --source . \
