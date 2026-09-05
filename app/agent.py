@@ -17,10 +17,16 @@ from google.genai import types
 
 from .config import settings
 
-# Tell the client library to use the AI Studio key, not Vertex.
-os.environ.setdefault("GOOGLE_GENAI_USE_VERTEXAI", "FALSE")
-if settings.api_key:
-    os.environ.setdefault("GOOGLE_API_KEY", settings.api_key)
+# Vertex authenticates as the Cloud Run service account; AI Studio uses the
+# key from Secret Manager. The library reads these from the environment.
+if settings.use_vertex:
+    os.environ.setdefault("GOOGLE_GENAI_USE_VERTEXAI", "TRUE")
+    os.environ.setdefault("GOOGLE_CLOUD_PROJECT", settings.project_id)
+    os.environ.setdefault("GOOGLE_CLOUD_LOCATION", settings.location)
+else:
+    os.environ.setdefault("GOOGLE_GENAI_USE_VERTEXAI", "FALSE")
+    if settings.api_key:
+        os.environ.setdefault("GOOGLE_API_KEY", settings.api_key)
 
 APP_NAME = "echo-journal"
 

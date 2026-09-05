@@ -18,6 +18,16 @@ REGION="${REGION:-asia-south1}"
 SERVICE="${SERVICE:-echo-journal}"
 SA="${SERVICE}-sa@${PROJECT_ID}.iam.gserviceaccount.com"
 
+# Vertex bills the Cloud project and authenticates as the service account,
+# so no API key is mounted in that mode.
+USE_VERTEX="${GOOGLE_GENAI_USE_VERTEXAI:-TRUE}"
+LOCATION="${GOOGLE_CLOUD_LOCATION:-us-central1}"
+if [ "${USE_VERTEX}" = "TRUE" ]; then
+  SECRET_FLAG=""
+else
+  SECRET_FLAG="--set-secrets=GOOGLE_API_KEY=gemini-api-key:latest"
+fi
+
 # Fail here, with a sentence that says what to do, rather than inside gcloud.
 missing=""
 for var in FIREBASE_API_KEY FIREBASE_AUTH_DOMAIN FIREBASE_APP_ID; do
@@ -39,8 +49,8 @@ gcloud run deploy "${SERVICE}" \
   --service-account "${SA}" \
   --allow-unauthenticated \
   --labels "dev-tutorial=cloud-run-ai-challenge" \
-  --set-env-vars "GOOGLE_CLOUD_PROJECT=${PROJECT_ID},GOOGLE_GENAI_USE_VERTEXAI=FALSE,MODEL=${MODEL:-gemini-3.6-flash},FIREBASE_API_KEY=${FIREBASE_API_KEY},FIREBASE_AUTH_DOMAIN=${FIREBASE_AUTH_DOMAIN},FIREBASE_APP_ID=${FIREBASE_APP_ID}" \
-  --set-secrets "GOOGLE_API_KEY=gemini-api-key:latest"
+  --set-env-vars "GOOGLE_CLOUD_PROJECT=${PROJECT_ID},GOOGLE_GENAI_USE_VERTEXAI=${USE_VERTEX},GOOGLE_CLOUD_LOCATION=${LOCATION},MODEL=${MODEL:-gemini-3.6-flash},FIREBASE_API_KEY=${FIREBASE_API_KEY},FIREBASE_AUTH_DOMAIN=${FIREBASE_AUTH_DOMAIN},FIREBASE_APP_ID=${FIREBASE_APP_ID}" \
+  ${SECRET_FLAG}
 
 URL="$(gcloud run services describe "${SERVICE}" --region "${REGION}" \
   --project "${PROJECT_ID}" --format='value(status.url)')"

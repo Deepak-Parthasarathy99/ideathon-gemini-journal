@@ -26,7 +26,14 @@ _client: genai.Client | None = None
 def client() -> genai.Client:
     global _client
     if _client is None:
-        _client = genai.Client(api_key=settings.api_key)
+        if settings.use_vertex:
+            _client = genai.Client(
+                vertexai=True,
+                project=settings.project_id,
+                location=settings.location,
+            )
+        else:
+            _client = genai.Client(api_key=settings.api_key)
     return _client
 
 

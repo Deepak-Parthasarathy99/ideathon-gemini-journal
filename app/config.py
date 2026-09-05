@@ -16,6 +16,12 @@ class Settings:
     model: str = os.getenv("MODEL", "gemini-3.6-flash")
     api_key: str = os.getenv("GOOGLE_API_KEY", "")
 
+    # Two ways to reach the same models. AI Studio bills its own prepaid
+    # credit pool; Vertex bills the Cloud project, which is where grant
+    # credits live. Same code either way.
+    use_vertex: bool = os.getenv("GOOGLE_GENAI_USE_VERTEXAI", "FALSE").upper() == "TRUE"
+    location: str = os.getenv("GOOGLE_CLOUD_LOCATION", "us-central1")
+
     rate_limit_per_minute: int = int(os.getenv("RATE_LIMIT_PER_MINUTE", "20"))
 
     # Firebase web config. Public by design — it identifies the project, it
@@ -37,7 +43,7 @@ class Settings:
         gaps = []
         if not self.firebase_project_id:
             gaps.append("GOOGLE_CLOUD_PROJECT")
-        if not self.api_key:
+        if not self.use_vertex and not self.api_key:
             gaps.append("GOOGLE_API_KEY")
         return gaps
 
