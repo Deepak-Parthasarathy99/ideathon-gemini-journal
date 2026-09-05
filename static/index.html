@@ -134,11 +134,29 @@
     </div>
 
     <div class="nav__foot">
-      <span class="avatar" id="avatar" aria-hidden="true"></span>
-      <span class="nav__email" id="nav-email"></span>
+      <button class="account" id="account" type="button" aria-haspopup="true" aria-expanded="false">
+        <span class="avatar" id="avatar" aria-hidden="true"></span>
+        <span class="nav__email" id="nav-email"></span>
+      </button>
       <button id="signout" class="iconbtn" type="button" aria-label="Sign out">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>
       </button>
+
+      <div class="menu" id="theme-menu" hidden role="menu" aria-label="Appearance">
+        <p class="menu__label">Appearance</p>
+        <button class="menu__item" data-theme-choice="light" type="button" role="menuitemradio">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M6.3 17.7l-1.4 1.4M19.1 4.9l-1.4 1.4"/></svg>
+          Light
+        </button>
+        <button class="menu__item" data-theme-choice="dark" type="button" role="menuitemradio">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+          Dark
+        </button>
+        <button class="menu__item" data-theme-choice="system" type="button" role="menuitemradio">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+          Match system
+        </button>
+      </div>
     </div>
   </nav>
 
@@ -176,22 +194,18 @@
           <div class="reflection" id="reflection" hidden>
             <p class="reflection__label">Daybook's reflection</p>
             <p class="reflection__text" id="reflection-text"></p>
-            <button class="btn btn--quiet" id="talk" type="button">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-              Talk this through
-            </button>
           </div>
 
           <div class="reflect-cta" id="reflect-cta" hidden>
-            <button class="btn btn--primary" id="reflect" type="button">Ask Daybook to read this</button>
-            <span class="reflect-cta__hint">Your writing is saved either way.</span>
+            <span class="reflect-cta__hint" id="reflect-failed">Daybook couldn't read this one.</span>
+            <button class="btn btn--quiet" id="reflect" type="button">Try again</button>
           </div>
 
           <div class="thread" id="thread" hidden></div>
 
           <form class="say" id="say" hidden>
-            <label class="visually-hidden" for="say-text">Reply</label>
-            <input id="say-text" type="text" maxlength="4000" placeholder="Say more…" autocomplete="off">
+            <label class="visually-hidden" for="say-text">Reply to Daybook</label>
+            <input id="say-text" type="text" maxlength="4000" placeholder="Say more about this…" autocomplete="off">
             <button class="iconbtn iconbtn--filled" type="submit" aria-label="Send">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
             </button>
@@ -217,9 +231,10 @@
         <div class="col">
           <h1 class="pane__title">Insights</h1>
 
-          <div class="note" id="insights-sample" hidden>
-            <p class="note__title">This is an example</p>
-            <p class="note__body">You haven't written enough yet, so here's what Daybook will show you once you have. Every word below is made up.</p>
+          <div class="empty" id="insights-empty" hidden>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 20h18L14.5 8.5 11 14l-2.5-3.5z"/></svg>
+            <p class="empty__title" id="insights-empty-title">Nothing to read yet</p>
+            <p class="empty__body" id="insights-empty-body">Insights come from your own writing, so there is nothing to show until there is some. Write on a few different days and this fills in.</p>
           </div>
 
           <p class="muted" id="insights-loading" hidden>Reading back through your journal…</p>

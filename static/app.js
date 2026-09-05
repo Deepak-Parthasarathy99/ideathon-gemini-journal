@@ -16,8 +16,14 @@ let auth = null;
 let openDate = null;      // the entry on screen, YYYY-MM-DD
 let calMonth = null;      // first of the month the calendar is showing
 let saveTimer = null;
+let reflectTimer = null;
 let lastSaved = "";
+let reflectedText = null;   // the text Daybook has already answered
 let busy = false;
+
+// Long enough that it reads as "you stopped", short enough to feel awake.
+const REFLECT_AFTER_MS = 5000;
+const REFLECT_MIN_CHARS = 40;
 
 // --------------------------------------------------------------- dates
 // The browser owns the notion of "today": a server in UTC would file an
@@ -75,8 +81,10 @@ async function api(path, options = {}) {
  *  previous person's entries until their own data arrives. */
 function resetUserUI() {
   clearTimeout(saveTimer);
+  clearTimeout(reflectTimer);
   openDate = null;
   lastSaved = "";
+  reflectedText = null;
   el("entry").value = "";
   el("entry-saved").textContent = "";
   el("prompt").hidden = true;
@@ -92,7 +100,7 @@ function resetUserUI() {
   el("week-label").textContent = "";
   el("insights-report").hidden = true;
   el("insights-error").hidden = true;
-  el("insights-sample").hidden = true;
+  el("insights-empty").hidden = true;
   insightsLoaded = false;
 }
 
@@ -136,14 +144,12 @@ async function openEntry(dateStr) {
   lastSaved = el("entry").value;
   autosize();
 
+  reflectedText = data.entry.reflection ? el("entry").value.trim() : null;
   if (data.entry.reflection) showReflection(data.entry.reflection);
-  else el("reflect-cta").hidden = !el("entry").value.trim();
+  else queueReflection();
 
   (data.thread || []).forEach((m) => addTurn(m.role === "user" ? "user" : "echo", m.text));
-  if (data.thread && data.thread.length) {
-    el("thread").hidden = false;
-    el("say").hidden = false;
-  }
+  if (data.thread && data.thread.length) el("thread").hidden = false;
 
   // The opener belongs to today only — older days already have their answer.
   el("prompt").hidden = true;
@@ -155,6 +161,38 @@ function showReflection(text) {
   el("reflection").hidden = false;
   el("reflect-cta").hidden = true;
   el("thinking").hidden = true;
+  // Replying is the obvious next move, so the box is simply there.
+  el("say").hidden = false;
+}
+
+/** Daybook reads once you have stopped, not because you asked it to.
+ *  Skipped while one is in flight, and never twice for the same text. */
+function queueReflection() {
+  clearTimeout(reflectTimer);
+  const text = el("entry").value.trim();
+  if (text.length < REFLECT_MIN_CHARS || text === reflectedText) return;
+  reflectTimer = setTimeout(reflectNow, REFLECT_AFTER_MS);
+}
+
+async function reflectNow() {
+  const text = el("entry").value.trim();
+  if (busy || !openDate || text.length < REFLECT_MIN_CHARS || text === reflectedText) return;
+
+  busy = true;
+  el("reflect-cta").hidden = true;
+  el("thinking").hidden = false;
+  try {
+    await save();
+    const { reflection } = await api(`/api/entries/${openDate}/reflect`, { method: "POST" });
+    reflectedText = text;
+    showReflection(reflection);
+  } catch (error) {
+    el("thinking").hidden = true;
+    el("reflect-cta").hidden = false;
+    console.error("reflection failed:", error.message);
+  } finally {
+    busy = false;
+  }
 }
 
 function addTurn(role, text) {
@@ -205,7 +243,8 @@ async function save() {
     // Editing clears an earlier reflection server-side; mirror that here.
     if (!entry.reflection) {
       el("reflection").hidden = true;
-      el("reflect-cta").hidden = !text.trim();
+      el("say").hidden = true;
+      reflectedText = null;
     }
     refreshCalendar();
   } catch (error) {
@@ -319,20 +358,6 @@ async function loadTimeline() {
 
 let insightsLoaded = false;
 
-const SAMPLE_INSIGHTS = {
-  entry_count: 12,
-  themes: ["work pressure", "sleep", "a course you started", "calls home"],
-  mood_arc:
-    "The first week reads tense and clipped. The last few entries are longer " +
-    "and calmer. The change shows up right after you started walking in the evenings.",
-  observation:
-    "Sleep appears in eight of the twelve entries, and every day you described " +
-    "as difficult followed a night you called restless.",
-  suggestion:
-    "Try writing one line before bed instead of after work. Your evening entries " +
-    "are consistently kinder to you than your midday ones.",
-};
-
 function renderInsights(report) {
   el("insights-meta").textContent = `Read from your last ${report.entry_count} entries.`;
   const themes = el("insights-themes");
@@ -349,6 +374,7 @@ function renderInsights(report) {
 
 async function loadInsights(refresh = false) {
   el("insights-error").hidden = true;
+  el("insights-empty").hidden = true;
   el("insights-report").hidden = true;
   el("insights-loading").hidden = false;
 
@@ -356,20 +382,12 @@ async function loadInsights(refresh = false) {
     const { insights } = await api(refresh ? "/api/insights?refresh=true" : "/api/insights");
     el("insights-loading").hidden = true;
 
-    // Nothing written yet: a clearly-labelled example beats a dead end, so
-    // the feature explains itself on a brand-new account.
+    // Everything here comes from the person's own entries. With nothing to
+    // read, say so plainly rather than showing an invented example.
     if (!insights) {
-      renderInsights(SAMPLE_INSIGHTS);
-      el("insights-sample").hidden = false;
-      el("insights-meta").hidden = true;
-      el("insights-refresh").hidden = true;
-      el("insights-report").hidden = false;
+      el("insights-empty").hidden = false;
       return;
     }
-
-    el("insights-sample").hidden = true;
-    el("insights-meta").hidden = false;
-    el("insights-refresh").hidden = false;
     renderInsights(insights);
     el("insights-report").hidden = false;
     insightsLoaded = true;
@@ -379,6 +397,42 @@ async function loadInsights(refresh = false) {
     el("insights-error").hidden = false;
   }
 }
+
+// ------------------------------------------------------------------ theme
+// Three states, and "system" is the default: most people never open this,
+// and following their machine is the right answer for them.
+
+function applyTheme(choice) {
+  const root = document.documentElement;
+  if (choice === "light" || choice === "dark") root.dataset.theme = choice;
+  else delete root.dataset.theme;
+
+  document.querySelectorAll("[data-theme-choice]").forEach((b) => {
+    const on = b.dataset.themeChoice === choice;
+    b.dataset.active = String(on);
+    b.setAttribute("aria-checked", String(on));
+  });
+}
+
+function storedTheme() {
+  try {
+    return localStorage.getItem("daybook-theme") || "system";
+  } catch {
+    return "system";
+  }
+}
+
+function setTheme(choice) {
+  try {
+    if (choice === "system") localStorage.removeItem("daybook-theme");
+    else localStorage.setItem("daybook-theme", choice);
+  } catch {
+    // A browser refusing storage should still switch for this visit.
+  }
+  applyTheme(choice);
+}
+
+applyTheme(storedTheme());
 
 // ------------------------------------------------------------------- boot
 
@@ -449,6 +503,37 @@ el("signin").addEventListener("click", async () => {
   }
 });
 
+el("account").addEventListener("click", (event) => {
+  event.stopPropagation();
+  const menu = el("theme-menu");
+  const open = menu.hidden;
+  menu.hidden = !open;
+  el("account").setAttribute("aria-expanded", String(open));
+});
+
+document.querySelectorAll("[data-theme-choice]").forEach((b) =>
+  b.addEventListener("click", () => {
+    setTheme(b.dataset.themeChoice);
+    el("theme-menu").hidden = true;
+    el("account").setAttribute("aria-expanded", "false");
+  })
+);
+
+document.addEventListener("click", (event) => {
+  const menu = el("theme-menu");
+  if (!menu.hidden && !menu.contains(event.target)) {
+    menu.hidden = true;
+    el("account").setAttribute("aria-expanded", "false");
+  }
+});
+
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && !el("theme-menu").hidden) {
+    el("theme-menu").hidden = true;
+    el("account").setAttribute("aria-expanded", "false");
+  }
+});
+
 el("signout").addEventListener("click", () => el("confirm-signout").showModal());
 el("confirm-cancel").addEventListener("click", () => el("confirm-signout").close());
 el("confirm-ok").addEventListener("click", () => {
@@ -474,36 +559,10 @@ el("cal-next").addEventListener("click", () => {
   refreshCalendar();
 });
 
-el("entry").addEventListener("input", () => { autosize(); queueSave(); });
-el("entry").addEventListener("blur", save);
+el("entry").addEventListener("input", () => { autosize(); queueSave(); queueReflection(); });
+el("entry").addEventListener("blur", () => { save(); queueReflection(); });
 
-el("reflect").addEventListener("click", async () => {
-  if (busy) return;
-  busy = true;
-  const btn = el("reflect");
-  btn.disabled = true;
-  el("reflect-cta").hidden = true;
-  el("thinking").hidden = false;
-  try {
-    await save();
-    const { reflection } = await api(`/api/entries/${openDate}/reflect`, { method: "POST" });
-    el("thinking").hidden = true;
-    showReflection(reflection);
-  } catch (error) {
-    el("thinking").hidden = true;
-    el("reflect-cta").hidden = false;
-    toast(error.message);
-  } finally {
-    busy = false;
-    btn.disabled = false;
-  }
-});
-
-el("talk").addEventListener("click", () => {
-  el("thread").hidden = false;
-  el("say").hidden = false;
-  el("say-text").focus();
-});
+el("reflect").addEventListener("click", reflectNow);
 
 el("say").addEventListener("submit", async (event) => {
   event.preventDefault();
