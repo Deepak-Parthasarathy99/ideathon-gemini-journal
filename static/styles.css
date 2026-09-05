@@ -429,7 +429,9 @@ body {
 .prompt__text { margin: 0; font-size: 15.5px; line-height: 24px; }
 
 .entry__text {
-  width: 100%; min-height: 220px; resize: none;
+  /* The floor is set in script so it can differ empty vs written; a
+     min-height here would override that inline height. */
+  width: 100%; min-height: 0; flex: none; resize: none;
   border: none; background: transparent; color: var(--text);
   font-family: inherit; font-size: 17px; line-height: 30px; letter-spacing: -0.1px;
   padding: 0;
@@ -621,3 +623,27 @@ body {
 .menu__item[data-active="true"] { background: var(--accent-wash); color: var(--accent-ink); font-weight: 600; }
 
 .reflect-cta__hint { color: var(--muted); }
+
+/* ------------------------------------------------------------------ hint */
+/* Sets the expectation before the pause, so waiting is something the
+   person is doing on purpose rather than a screen that has stopped. */
+
+.hint {
+  display: flex; align-items: center; gap: 8px; margin: 0;
+  font-size: 12.5px; color: var(--faint);
+}
+
+.hint__dot {
+  width: 6px; height: 6px; border-radius: 999px;
+  background: var(--accent); flex-shrink: 0;
+  animation: breathe 1800ms ease-in-out infinite;
+}
+
+@keyframes breathe {
+  0%, 100% { opacity: 0.35; transform: scale(0.85); }
+  50%      { opacity: 1;    transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hint__dot { animation: none; opacity: 0.8; }
+}

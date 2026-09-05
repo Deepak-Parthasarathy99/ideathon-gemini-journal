@@ -21,8 +21,9 @@ let lastSaved = "";
 let reflectedText = null;   // the text Daybook has already answered
 let busy = false;
 
-// Long enough that it reads as "you stopped", short enough to feel awake.
-const REFLECT_AFTER_MS = 5000;
+// Short enough that the pause never reads as the app being stuck. Leaving
+// the text box entirely counts as finishing and skips the wait.
+const REFLECT_AFTER_MS = 1800;
 const REFLECT_MIN_CHARS = 40;
 
 // --------------------------------------------------------------- dates
@@ -90,6 +91,7 @@ function resetUserUI() {
   el("prompt").hidden = true;
   el("reflection").hidden = true;
   el("reflect-cta").hidden = true;
+  el("reflect-hint").hidden = true;
   el("thinking").hidden = true;
   el("thread").hidden = true;
   el("thread").innerHTML = "";
@@ -130,6 +132,7 @@ async function openEntry(dateStr) {
   el("say").hidden = true;
   el("reflection").hidden = true;
   el("reflect-cta").hidden = true;
+  el("reflect-hint").hidden = true;
   el("thinking").hidden = true;
 
   let data;
@@ -160,17 +163,26 @@ function showReflection(text) {
   el("reflection-text").textContent = text;
   el("reflection").hidden = false;
   el("reflect-cta").hidden = true;
+  el("reflect-hint").hidden = true;
   el("thinking").hidden = true;
   // Replying is the obvious next move, so the box is simply there.
   el("say").hidden = false;
 }
 
 /** Daybook reads once you have stopped, not because you asked it to.
- *  Skipped while one is in flight, and never twice for the same text. */
+ *  Skipped while one is in flight, and never twice for the same text.
+ *
+ *  The hint goes up the moment there is enough to read, so the pause is
+ *  something the person is expecting rather than a screen doing nothing.
+ */
 function queueReflection() {
   clearTimeout(reflectTimer);
   const text = el("entry").value.trim();
-  if (text.length < REFLECT_MIN_CHARS || text === reflectedText) return;
+  const ready = text.length >= REFLECT_MIN_CHARS && text !== reflectedText;
+
+  el("reflect-hint").hidden = !ready || !el("thinking").hidden;
+  if (!ready) return;
+
   reflectTimer = setTimeout(reflectNow, REFLECT_AFTER_MS);
 }
 
@@ -179,7 +191,9 @@ async function reflectNow() {
   if (busy || !openDate || text.length < REFLECT_MIN_CHARS || text === reflectedText) return;
 
   busy = true;
+  clearTimeout(reflectTimer);
   el("reflect-cta").hidden = true;
+  el("reflect-hint").hidden = true;
   el("thinking").hidden = false;
   try {
     await save();
@@ -188,6 +202,7 @@ async function reflectNow() {
     showReflection(reflection);
   } catch (error) {
     el("thinking").hidden = true;
+    el("reflect-hint").hidden = true;
     el("reflect-cta").hidden = false;
     console.error("reflection failed:", error.message);
   } finally {
@@ -206,8 +221,15 @@ function addTurn(role, text) {
 
 function autosize() {
   const box = el("entry");
-  box.style.height = "auto";
-  box.style.height = `${Math.max(220, box.scrollHeight)}px`;
+  // Collapse before measuring: inside a flex column, "auto" lets the box
+  // claim the leftover space and scrollHeight then reports that instead of
+  // the text.
+  box.style.height = "0px";
+  const needed = box.scrollHeight;
+  // An empty page should look like a page. Once there is writing on it the
+  // box follows the text, so what comes next sits under the last line
+  // instead of a screen away from it.
+  box.style.height = `${Math.max(box.value.trim() ? 96 : 260, needed)}px`;
 }
 
 async function loadOpener() {
@@ -559,8 +581,19 @@ el("cal-next").addEventListener("click", () => {
   refreshCalendar();
 });
 
-el("entry").addEventListener("input", () => { autosize(); queueSave(); queueReflection(); });
-el("entry").addEventListener("blur", () => { save(); queueReflection(); });
+el("entry").addEventListener("input", () => {
+  autosize();
+  queueSave();
+  queueReflection();
+});
+
+// Leaving the box says you have finished, so read it now rather than
+// counting down again.
+el("entry").addEventListener("blur", () => {
+  save();
+  clearTimeout(reflectTimer);
+  reflectNow();
+});
 
 el("reflect").addEventListener("click", reflectNow);
 
