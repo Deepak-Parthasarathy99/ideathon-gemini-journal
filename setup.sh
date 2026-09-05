@@ -4,7 +4,7 @@ set -euo pipefail
 
 PROJECT_ID="${PROJECT_ID:-$(gcloud config get-value project)}"
 REGION="${REGION:-asia-south1}"
-SERVICE="${SERVICE:-ideathon-app}"
+SERVICE="${SERVICE:-echo-journal}"
 SA_NAME="${SERVICE}-sa"
 SA="${SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
 
