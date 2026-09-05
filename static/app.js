@@ -235,13 +235,28 @@ el("insights-retry").addEventListener("click", () => loadInsights(true));
 
 // ---------------------------------------------------------------- actions
 
+// Each failure has a different fix, so say which one happened rather than
+// collapsing them all into "try again".
+const SIGNIN_ERRORS = {
+  "auth/unauthorized-domain":
+    "This site isn't authorised for sign-in yet. Add it under Firebase " +
+    "Authentication > Settings > Authorized domains.",
+  "auth/operation-not-allowed":
+    "Google sign-in isn't switched on for this project yet.",
+  "auth/popup-blocked":
+    "Your browser blocked the sign-in popup. Allow popups for this site and retry.",
+  "auth/invalid-api-key": "The Firebase configuration for this site is wrong.",
+  "auth/api-key-not-valid": "The Firebase configuration for this site is wrong.",
+  "auth/network-request-failed": "Couldn't reach Google. Check your connection.",
+};
+
 el("signin").addEventListener("click", async () => {
   try {
     await signInWithPopup(auth, new GoogleAuthProvider());
   } catch (error) {
-    if (error.code !== "auth/popup-closed-by-user") {
-      toast("Sign-in didn't complete. Try again.");
-    }
+    if (error.code === "auth/popup-closed-by-user") return;
+    console.error("sign-in failed:", error.code, error.message);
+    toast(SIGNIN_ERRORS[error.code] || `Sign-in failed (${error.code}).`);
   }
 });
 
