@@ -663,3 +663,27 @@ body {
 }
 
 .insights__sample p { margin: 0; }
+
+/* -------------------------------------------------------------- dialog */
+
+.md-dialog {
+  border: none;
+  border-radius: var(--md-corner-xl);
+  background: var(--md-surface-container-high);
+  color: var(--md-on-surface);
+  padding: 24px;
+  max-width: min(360px, calc(100vw - 48px));
+  box-shadow: var(--md-elevation-2);
+}
+
+.md-dialog::backdrop { background: rgba(0, 0, 0, 0.4); }
+
+.md-dialog h2 { margin: 0 0 12px; }
+.md-dialog p { margin: 0; color: var(--md-on-surface-variant); }
+
+.md-dialog__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 24px;
+}

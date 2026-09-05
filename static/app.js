@@ -25,6 +25,7 @@ const sendBtn = el("send");
 
 let auth = null;
 let busy = false;
+let insightsLoaded = false;
 
 // ---------------------------------------------------------------- helpers
 
@@ -49,6 +50,22 @@ function toast(text) {
   snackTimer = setTimeout(() => {
     el("snackbar").dataset.open = "false";
   }, 5000);
+}
+
+/** Wipe every trace of whoever was signed in before.
+ *  The journal lives in the DOM as well as in Firestore, and sign-out has to
+ *  clear both — otherwise the next person to sign in on this device sees the
+ *  previous person's entries until their own data arrives. */
+function resetUserUI() {
+  log.querySelectorAll(".bubble").forEach((b) => b.remove());
+  empty.hidden = false;
+  insightsLoaded = false;
+  el("insights-report").hidden = true;
+  el("insights-error").hidden = true;
+  el("insights-empty").hidden = true;
+  el("insights-themes").innerHTML = "";
+  ["insights-mood", "insights-observation", "insights-suggestion", "insights-meta"]
+    .forEach((id) => (el(id).textContent = ""));
 }
 
 function bubble(role, text) {
@@ -114,12 +131,15 @@ async function start() {
 
   onAuthStateChanged(auth, async (user) => {
     if (!user) {
+      resetUserUI();
       show("signin");
       el("account").hidden = true;
       el("tabs").hidden = true;
       return;
     }
 
+    // Clear before the journal is visible, not after the data arrives.
+    resetUserUI();
     show("chat");
     el("account").hidden = false;
     el("tabs").hidden = false;
@@ -133,7 +153,6 @@ async function start() {
     try {
       await api("/api/me");
       const { messages } = await api("/api/messages");
-      log.querySelectorAll(".bubble").forEach((b) => b.remove());
       messages.forEach((m) => bubble(m.role === "user" ? "user" : "assistant", m.text));
       empty.hidden = messages.length > 0;
     } catch (error) {
@@ -153,8 +172,6 @@ async function start() {
 }
 
 // --------------------------------------------------------------- insights
-
-let insightsLoaded = false;
 
 // Shown only on an account with too little history, always behind the
 // "this is an example" banner. Invented, never presented as the user's.
@@ -260,7 +277,12 @@ el("signin").addEventListener("click", async () => {
   }
 });
 
-el("signout").addEventListener("click", () => signOut(auth));
+el("signout").addEventListener("click", () => el("confirm-signout").showModal());
+el("confirm-cancel").addEventListener("click", () => el("confirm-signout").close());
+el("confirm-ok").addEventListener("click", () => {
+  el("confirm-signout").close();
+  signOut(auth);
+});
 
 el("clear").addEventListener("click", async () => {
   try {
