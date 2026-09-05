@@ -40,30 +40,32 @@
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #101215;
-    --chrome: #16181c;
-    --raised: #1b1e23;
-    --sunken: #22262c;
-    --line: #262a30;
-    --line-soft: #21242a;
+    /* Neutral greys on black — no blue cast in the surfaces, so the
+       accent is the only colour in the room. */
+    --bg: #0b0b0c;
+    --chrome: #121213;
+    --raised: #191919;
+    --sunken: #232325;
+    --line: #2a2a2d;
+    --line-soft: #202022;
 
-    --text: #eceef1;
-    --muted: #a2a9b4;
-    --faint: #767d88;
-    --ghost: #4b525c;
+    --text: #ededee;
+    --muted: #a1a1a6;
+    --faint: #727277;
+    --ghost: #4e4e53;
 
-    --accent: #7d97f0;
-    --accent-ink: #a9bcf7;
-    --accent-wash: #1e2740;
-    --accent-line: #2f3d61;
-    --accent-quiet: #171b25;
+    --accent: #8098f5;
+    --accent-ink: #aabbf9;
+    --accent-wash: #1d2030;
+    --accent-line: #31354d;
+    --accent-quiet: #16171d;
 
     --warn: #fda29b;
-    --warn-wash: #2a1a19;
-    --warn-line: #5a2b28;
+    --warn-wash: #241a19;
+    --warn-line: #4d2b28;
 
-    --shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
-    --shadow-lift: 0 1px 2px rgba(0, 0, 0, 0.4), 0 12px 28px rgba(0, 0, 0, 0.35);
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+    --shadow-lift: 0 1px 2px rgba(0, 0, 0, 0.5), 0 12px 28px rgba(0, 0, 0, 0.45);
   }
 }
 
