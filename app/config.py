@@ -13,7 +13,7 @@ class Settings:
         "GOOGLE_CLOUD_PROJECT", ""
     )
 
-    model: str = os.getenv("MODEL", "gemini-3.5-flash")
+    model: str = os.getenv("MODEL", "gemini-3.6-flash")
     api_key: str = os.getenv("GOOGLE_API_KEY", "")
 
     rate_limit_per_minute: int = int(os.getenv("RATE_LIMIT_PER_MINUTE", "20"))

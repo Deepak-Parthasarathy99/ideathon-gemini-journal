@@ -39,7 +39,7 @@ gcloud run deploy "${SERVICE}" \
   --service-account "${SA}" \
   --allow-unauthenticated \
   --labels "dev-tutorial=cloud-run-ai-challenge" \
-  --set-env-vars "GOOGLE_CLOUD_PROJECT=${PROJECT_ID},GOOGLE_GENAI_USE_VERTEXAI=FALSE,MODEL=${MODEL:-gemini-3.5-flash},FIREBASE_API_KEY=${FIREBASE_API_KEY},FIREBASE_AUTH_DOMAIN=${FIREBASE_AUTH_DOMAIN},FIREBASE_APP_ID=${FIREBASE_APP_ID}" \
+  --set-env-vars "GOOGLE_CLOUD_PROJECT=${PROJECT_ID},GOOGLE_GENAI_USE_VERTEXAI=FALSE,MODEL=${MODEL:-gemini-3.6-flash},FIREBASE_API_KEY=${FIREBASE_API_KEY},FIREBASE_AUTH_DOMAIN=${FIREBASE_AUTH_DOMAIN},FIREBASE_APP_ID=${FIREBASE_APP_ID}" \
   --set-secrets "GOOGLE_API_KEY=gemini-api-key:latest"
 
 URL="$(gcloud run services describe "${SERVICE}" --region "${REGION}" \
