@@ -306,7 +306,7 @@ async function loadTimeline() {
     row.querySelector(".day__num").textContent = String(d.getDate());
     row.querySelector(".day__mon").textContent = MONTHS[d.getMonth()];
     row.querySelector(".day__text").textContent = e.text;
-    row.querySelector(".day__tag").textContent = e.reflection ? "Echo replied" : "";
+    row.querySelector(".day__tag").textContent = e.reflection ? "Daybook replied" : "";
     row.addEventListener("click", () => { showPane("entry"); openEntry(e.date); });
     list.appendChild(row);
   });
@@ -489,7 +489,7 @@ el("reflect").addEventListener("click", async () => {
   } finally {
     busy = false;
     btn.disabled = false;
-    btn.textContent = "Ask Echo to read this";
+    btn.textContent = "Ask Daybook to read this";
   }
 });
 

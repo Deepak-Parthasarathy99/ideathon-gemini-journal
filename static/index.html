@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Echo — a journal that remembers</title>
-<meta name="description" content="A private journal that writes back and remembers what you told it.">
+<title>Daybook — a journal that remembers</title>
+<meta name="description" content="A private journal that reads back what you wrote. Built for the Google Cloud Run AI Challenge.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&display=swap">
@@ -13,22 +13,79 @@
 <body>
 
 <!-- Signed out -->
-<main class="view signin" id="view-signin" data-active="true">
-  <div class="signin__card">
-    <div class="brand brand--lg">
-      <span class="brand__mark" aria-hidden="true">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
-      </span>
-      <span class="brand__name">Echo</span>
+<main class="view landing" id="view-signin" data-active="true">
+
+  <div class="landing__inner">
+
+    <div class="landing__pitch">
+      <div class="brand brand--lg">
+        <span class="brand__mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+        </span>
+        <span class="brand__name">Daybook</span>
+      </div>
+
+      <h1 class="landing__title">A journal that<br>remembers</h1>
+
+      <p class="landing__lead">
+        Most journals forget you between entries. Daybook reads yours back —
+        picking up the thread you left hanging, and showing you the patterns
+        no single day reveals.
+      </p>
+
+      <ul class="points">
+        <li>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>
+          <span><strong>Never a blank page.</strong> Each day opens with a question drawn from what you last wrote.</span>
+        </li>
+        <li>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+          <span><strong>You write, it answers.</strong> One reflection under your entry — not a chat waiting on a reply.</span>
+        </li>
+        <li>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 17l5-5 4 3 5-7 4 4"/></svg>
+          <span><strong>Patterns across weeks.</strong> Recurring themes and shifts you can't see one entry at a time.</span>
+        </li>
+      </ul>
+
+      <button id="signin" class="btn btn--primary btn--lg" type="button">
+        <svg class="gmark" viewBox="0 0 48 48" aria-hidden="true">
+          <path fill="#4285F4" d="M45.1 24.5c0-1.6-.1-2.7-.4-3.9H24v7.1h12.1c-.2 1.8-1.6 4.6-4.5 6.5l-.1.3 6.5 5 .5.1c4.1-3.8 6.6-9.4 6.6-15.1"/>
+          <path fill="#34A853" d="M24 46c5.9 0 10.9-2 14.5-5.3l-6.9-5.4c-1.9 1.3-4.4 2.2-7.6 2.2-5.8 0-10.7-3.8-12.5-9.1l-.3.1-6.7 5.2-.1.3C7.9 41 15.4 46 24 46"/>
+          <path fill="#FBBC05" d="M11.5 28.4c-.5-1.4-.8-2.9-.8-4.4s.3-3 .7-4.4v-.3l-6.8-5.3-.2.1C2.9 17 2 20.4 2 24s.9 7 2.4 9.9z"/>
+          <path fill="#EA4335" d="M24 9.5c4.1 0 6.9 1.8 8.5 3.3l6.2-6C34.9 3.4 29.9 1 24 1 15.4 1 7.9 6 4.4 14.1l7.1 5.5C13.3 14.3 18.2 9.5 24 9.5"/>
+        </svg>
+        Sign in with Google
+      </button>
+
+      <p class="landing__fine">Your entries stay private to your account. Nobody else can read them.</p>
     </div>
-    <h1 class="signin__title">A journal that remembers</h1>
-    <p class="signin__lead">
-      Write a little each day. Echo reads it back to you — picking up where you
-      left off, and showing you the patterns you can't see one entry at a time.
-      Everything you write stays private to your account.
-    </p>
-    <button id="signin" class="btn btn--primary" type="button">Continue with Google</button>
+
+    <div class="landing__preview" aria-hidden="true">
+      <div class="peek">
+        <div class="peek__head">
+          <span class="peek__date">Sep 4</span>
+          <span class="peek__day">Friday</span>
+          <span class="peek__saved">Saved</span>
+        </div>
+        <div class="peek__prompt">
+          <span class="peek__from">From Sep 2</span>
+          <p>How did the hackathon turn out, and did you end up finishing what you were working on?</p>
+        </div>
+        <p class="peek__entry">Submitting today. Excited and a bit scared — mostly scared that I'll notice something broken the moment after I hit the button.</p>
+        <div class="peek__reflection">
+          <span class="peek__label">Reflection</span>
+          <p>That fear of noticing something broken afterwards has shown up before — you said almost the same thing about the demo in August.</p>
+        </div>
+      </div>
+    </div>
+
   </div>
+
+  <footer class="landing__foot">
+    <span>Built by Deepak Parthasarathy for the Google Cloud Run AI Challenge</span>
+    <a href="https://github.com/Deepak-Parthasarathy99/ideathon-gemini-journal" target="_blank" rel="noopener noreferrer">Source on GitHub</a>
+  </footer>
 </main>
 
 <!-- Signed in -->
@@ -40,7 +97,7 @@
       <span class="brand__mark" aria-hidden="true">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
       </span>
-      <span class="brand__name">Echo</span>
+      <span class="brand__name">Daybook</span>
     </div>
 
     <div class="nav__group">
@@ -115,7 +172,7 @@
           <textarea id="entry" class="entry__text" placeholder="Write about your day…" spellcheck="true"></textarea>
 
           <div class="reflection" id="reflection" hidden>
-            <p class="reflection__label">Echo's reflection</p>
+            <p class="reflection__label">Daybook's reflection</p>
             <p class="reflection__text" id="reflection-text"></p>
             <button class="btn btn--quiet" id="talk" type="button">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
@@ -124,14 +181,14 @@
           </div>
 
           <div class="reflect-cta" id="reflect-cta" hidden>
-            <button class="btn btn--primary" id="reflect" type="button">Ask Echo to read this</button>
+            <button class="btn btn--primary" id="reflect" type="button">Ask Daybook to read this</button>
             <span class="reflect-cta__hint">Your writing is saved either way.</span>
           </div>
 
           <div class="thread" id="thread" hidden></div>
 
           <form class="say" id="say" hidden>
-            <label class="visually-hidden" for="say-text">Reply to Echo</label>
+            <label class="visually-hidden" for="say-text">Reply</label>
             <input id="say-text" type="text" maxlength="4000" placeholder="Say more…" autocomplete="off">
             <button class="iconbtn iconbtn--filled" type="submit" aria-label="Send">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
@@ -160,7 +217,7 @@
 
           <div class="note" id="insights-sample" hidden>
             <p class="note__title">This is an example</p>
-            <p class="note__body">You haven't written enough yet, so here's what Echo will show you once you have. Every word below is made up.</p>
+            <p class="note__body">You haven't written enough yet, so here's what Daybook will show you once you have. Every word below is made up.</p>
           </div>
 
           <p class="muted" id="insights-loading" hidden>Reading back through your journal…</p>

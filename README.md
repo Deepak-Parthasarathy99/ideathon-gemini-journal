@@ -1,10 +1,10 @@
-# Echo — a journal that remembers
+# Daybook — a journal that remembers
 
 Built for the **Cloud Run AI Challenge** (`dev-tutorial=cloud-run-ai-challenge`).
 
 Most journal apps fail for two well-documented reasons: the blank page
 (people don't know what to write, so they stop) and shallow AI (the
-assistant reacts to today's entry and forgets everything else). Echo is
+assistant reacts to today's entry and forgets everything else). Daybook is
 built against both:
 
 - **Never a blank page.** Every session opens with one personal question
@@ -121,8 +121,8 @@ Secret Manager.
 ## Test it
 
 1. Open the URL, sign in with Google.
-2. Write an entry; Echo replies and both sides land in Firestore.
-3. Sign out and back in — the journal persists, and Echo now opens with a
+2. Write an entry; Daybook replies and both sides land in Firestore.
+3. Sign out and back in — the journal persists, and Daybook now opens with a
    question about what you wrote.
 4. After three or more entries, open **Insights**.
 5. `curl <url>/api/messages` without a token → 401.

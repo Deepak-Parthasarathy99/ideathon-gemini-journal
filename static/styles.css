@@ -1,4 +1,4 @@
-/* Echo — a journal that remembers.
+/* Daybook — a journal that remembers.
    One palette, defined here and nowhere else. Light and dark are the same
    design; only these tokens change. */
 
@@ -148,27 +148,97 @@ body {
 }
 .iconbtn--filled:hover { background: var(--accent-ink); color: #fff; }
 
-/* ---------------------------------------------------------------- sign in */
+/* --------------------------------------------------------------- landing */
 
 .view { display: none; }
 .view[data-active="true"] { display: flex; }
 
-.signin {
-  min-height: 100%; align-items: center; justify-content: center;
-  padding: 32px; background: var(--chrome);
+.landing {
+  min-height: 100%; flex-direction: column; background: var(--chrome);
 }
 
-.signin__card {
-  width: min(460px, 100%);
+.landing__inner {
+  flex: 1; width: 100%; max-width: 1120px; margin: 0 auto;
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: center; gap: 64px; padding: 56px 40px;
+}
+
+.landing__pitch { display: flex; flex-direction: column; align-items: flex-start; gap: 20px; }
+
+.landing__title {
+  margin: 4px 0 0; font-size: 46px; line-height: 1.08;
+  font-weight: 700; letter-spacing: -1.6px;
+}
+
+.landing__lead {
+  margin: 0; max-width: 46ch; color: var(--muted);
+  font-size: 16px; line-height: 27px;
+}
+
+.points { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-direction: column; gap: 13px; }
+.points li { display: flex; gap: 11px; align-items: flex-start; font-size: 14.5px; line-height: 23px; color: var(--muted); max-width: 46ch; }
+.points svg { width: 17px; height: 17px; color: var(--accent); flex-shrink: 0; margin-top: 3px; }
+.points strong { color: var(--text); font-weight: 600; }
+
+.btn--lg { min-height: 48px; padding: 0 24px; font-size: 15px; margin-top: 6px; }
+.gmark { width: 17px; height: 17px; background: #fff; border-radius: 3px; padding: 1px; }
+
+.landing__fine { margin: 0; font-size: 12.5px; color: var(--faint); }
+
+/* The product, shown before you sign in */
+
+.landing__preview { display: flex; justify-content: center; }
+
+.peek {
+  width: 100%; max-width: 420px;
   background: var(--raised); border: 1px solid var(--line);
-  border-radius: 20px; padding: 36px;
-  display: flex; flex-direction: column; gap: 16px;
+  border-radius: 18px; padding: 22px;
+  display: flex; flex-direction: column; gap: 15px;
   box-shadow: var(--shadow-lift);
 }
 
-.signin__title { margin: 6px 0 0; font-size: 27px; font-weight: 700; letter-spacing: -0.7px; }
-.signin__lead { margin: 0; color: var(--muted); font-size: 15px; line-height: 25px; }
-.signin .btn { align-self: flex-start; margin-top: 6px; }
+.peek__head { display: flex; align-items: baseline; gap: 9px; }
+.peek__date { font-size: 21px; font-weight: 700; letter-spacing: -0.7px; }
+.peek__day { font-size: 12.5px; color: var(--faint); }
+.peek__saved { margin-left: auto; font-size: 11.5px; color: var(--ghost); }
+
+.peek__prompt {
+  background: var(--accent-quiet); border: 1px solid var(--accent-line);
+  border-radius: var(--r-m); padding: 12px 14px;
+}
+.peek__from {
+  display: block; margin-bottom: 4px; font-size: 10px; font-weight: 700;
+  letter-spacing: 0.4px; text-transform: uppercase; color: var(--accent);
+}
+.peek__prompt p { margin: 0; font-size: 13.5px; line-height: 21px; }
+
+.peek__entry { margin: 0; font-size: 14.5px; line-height: 25px; }
+
+.peek__reflection { border-left: 2px solid var(--accent-line); padding-left: 14px; }
+.peek__label {
+  display: block; margin-bottom: 4px; font-size: 10px; font-weight: 700;
+  letter-spacing: 0.6px; text-transform: uppercase; color: var(--faint);
+}
+.peek__reflection p { margin: 0; font-size: 13.5px; line-height: 22px; color: var(--muted); }
+
+.landing__foot {
+  border-top: 1px solid var(--line);
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 16px; flex-wrap: wrap;
+  max-width: 1120px; width: 100%; margin: 0 auto;
+  padding: 18px 40px; font-size: 12.5px; color: var(--faint);
+}
+.landing__foot a { color: var(--muted); text-decoration: none; }
+.landing__foot a:hover { color: var(--accent); text-decoration: underline; }
+
+@media (max-width: 900px) {
+  .landing__inner { grid-template-columns: minmax(0, 1fr); gap: 40px; padding: 40px 24px; }
+  .landing__title { font-size: 36px; letter-spacing: -1.1px; }
+  /* Pitch and sign-in first; the preview follows. Leading with the
+     preview on a phone pushed the button below the fold. */
+  .peek { max-width: 100%; }
+  .landing__foot { padding: 16px 24px; }
+}
 
 /* -------------------------------------------------------------------- app */
 

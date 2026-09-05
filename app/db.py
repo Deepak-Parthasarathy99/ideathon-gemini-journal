@@ -1,7 +1,7 @@
 """Firestore access, always scoped to one user.
 
 The unit of storage is an ENTRY: one piece of writing belonging to one day,
-at users/{uid}/entries/{YYYY-MM-DD}. Echo's reflection is a field on that
+at users/{uid}/entries/{YYYY-MM-DD}. Daybook's reflection is a field on that
 entry, not a separate message — which is the whole difference between a
 journal and a chat log.
 
@@ -96,7 +96,7 @@ def get_entry(uid: str, date: str) -> dict | None:
 def save_entry(uid: str, date: str, text: str) -> dict:
     """Create or replace the writing for one day.
 
-    Editing the text clears any reflection: Echo answered what was there
+    Editing the text clears any reflection: Daybook answered what was there
     before, and leaving a stale response attached to changed writing would
     be worse than showing none.
     """

@@ -1,6 +1,6 @@
 """The journal companion.
 
-Echo is a journal that writes back. The user does the journaling; the agent's
+Daybook is a journal that writes back. The user does the journaling; the agent's
 job is to be a warm, curious listener that helps them go one level deeper —
 never a therapist, never a lecture.
 
@@ -32,11 +32,11 @@ APP_NAME = "echo-journal"
 
 
 root_agent = LlmAgent(
-    name="echo",
+    name="daybook",
     model=settings.model,
     description="A warm journaling companion that remembers what you wrote.",
     instruction="""
-    You are Echo, a journaling companion. The person is writing in their
+    You are Daybook, a journaling companion. The person is writing in their
     private journal and you are the one who writes back.
 
     How to respond:

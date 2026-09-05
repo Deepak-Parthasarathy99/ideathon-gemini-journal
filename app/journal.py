@@ -1,4 +1,4 @@
-"""The two features that make Echo more than a chat box.
+"""The two features that make Daybook more than a chat box.
 
 Opener  — every visit starts with one personal question built from the last
           few entries, so the page is never blank.
@@ -77,7 +77,7 @@ async def opener(entries: list[dict]) -> str:
 
 
 async def reflect(text: str, past: list[dict]) -> str | None:
-    """Echo's answer to one entry.
+    """Daybook's answer to one entry.
 
     Deliberately not a conversation turn: it observes, connects to earlier
     entries when there is something real to connect to, and stops. It asks
@@ -85,7 +85,7 @@ async def reflect(text: str, past: list[dict]) -> str | None:
     back into a chat.
     """
     prompt = (
-        "You are Echo, reading one entry from someone's private journal.\n"
+        "You are Daybook, reading one entry from someone's private journal.\n"
         "Write ONE short paragraph back — three sentences at most. Be warm "
         "and specific about what they actually wrote, in plain language, "
         "like a close friend who pays attention.\n"

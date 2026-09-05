@@ -23,7 +23,7 @@ from .config import settings
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
 
-app = FastAPI(title="Echo Journal", docs_url=None, redoc_url=None)
+app = FastAPI(title="Daybook Journal", docs_url=None, redoc_url=None)
 
 
 @app.on_event("startup")
@@ -118,12 +118,12 @@ def calendar(month: str, user: User = CurrentUser) -> dict:
     return {"days": db.written_days(user.uid, month)}
 
 
-# --- Echo ------------------------------------------------------------------
+# --- Daybook ------------------------------------------------------------------
 
 
 @app.post("/api/entries/{date}/reflect")
 async def reflect(date: str, user: User = CurrentUser) -> dict:
-    """Echo reads one day's writing and answers it once."""
+    """Daybook reads one day's writing and answers it once."""
     date = _check_date(date)
     entry = db.get_entry(user.uid, date)
     if not entry or not entry["text"].strip():
@@ -138,7 +138,7 @@ async def reflect(date: str, user: User = CurrentUser) -> dict:
     if text is None:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="Echo couldn't answer just now. Your writing is saved.",
+            detail="Daybook couldn't answer just now. Your writing is saved.",
         )
 
     db.set_reflection(user.uid, date, text)
@@ -169,7 +169,7 @@ async def talk(date: str, body: ThreadBody, user: User = CurrentUser) -> dict:
         log.exception("Thread reply failed for uid=%s", user.uid)
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="Echo didn't respond. Try again in a moment.",
+            detail="Daybook didn't respond. Try again in a moment.",
         )
 
     db.add_thread_message(user.uid, date, "assistant", reply)
