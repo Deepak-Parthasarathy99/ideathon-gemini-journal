@@ -647,3 +647,24 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .hint__dot { animation: none; opacity: 0.8; }
 }
+
+/* ---------------------------------------------------------------- boot */
+/* Held over the page until Firebase has said whether there is a session.
+   Guessing "signed out" and correcting a moment later is worse than a
+   short, quiet pause. */
+
+.booting {
+  position: fixed; inset: 0; z-index: 50;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--chrome);
+}
+
+.booting .brand__mark {
+  width: 34px; height: 34px; border-radius: 10px;
+  animation: breathe 1600ms ease-in-out infinite;
+}
+.booting .brand__mark svg { width: 19px; height: 19px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .booting .brand__mark { animation: none; }
+}

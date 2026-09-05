@@ -460,15 +460,24 @@ applyTheme(storedTheme());
 
 // ------------------------------------------------------------------- boot
 
+/** Stop holding the page back, whichever way things resolved. */
+function booted() {
+  el("booting").hidden = true;
+}
+
 async function start() {
   let config;
   try {
     config = await fetch("/api/config").then((r) => r.json());
   } catch {
+    booted();
+    el("view-signin").dataset.active = "true";
     toast("Couldn't reach the server.");
     return;
   }
   if (!config.apiKey) {
+    booted();
+    el("view-signin").dataset.active = "true";
     toast("Firebase isn't configured yet. See README.");
     return;
   }
@@ -480,6 +489,7 @@ async function start() {
       resetUserUI();
       el("view-signin").dataset.active = "true";
       el("app").hidden = true;
+      booted();
       return;
     }
 
@@ -487,6 +497,7 @@ async function start() {
     el("view-signin").dataset.active = "false";
     el("app").hidden = false;
     showPane("entry");
+    booted();
 
     el("avatar").textContent = (user.displayName || user.email || "?").trim().charAt(0).toUpperCase();
     el("nav-email").textContent = user.email || "";
