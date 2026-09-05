@@ -14,9 +14,10 @@ built against both:
   and reflects back what you can't see one day at a time: recurring
   themes, how your mood has moved, one pattern you may not have noticed,
   and one small thing worth trying. Cached per day in Firestore.
-- **A companion, not a chatbot.** The ADK agent replies to each entry
-  warmly and briefly, with your recent journal as context — so it says
-  "last time you mentioned…" and means it.
+- **A journal, not a chatbot.** The unit of storage is an entry — one
+  piece of writing belonging to one day — and Daybook's reflection is a
+  field on it. It answers once, asks nothing back, and a conversation
+  only starts if you ask for one.
 
 ## Stack
 
@@ -27,11 +28,16 @@ built against both:
 | Storage | Cloud Firestore, every document keyed under the user's uid |
 | Model | Gemini 3.6 Flash, via Vertex AI (see below) |
 | Agent | Google ADK (`LlmAgent`) |
-| Interface | Material 3, hand-built, no build step |
+| Interface | Hand-built, no build step, no framework |
 
 ## How a request works
 
-    browser -> verify Firebase ID token -> ADK agent / Gemini -> Firestore
+    browser -> verify Firebase ID token -> Firestore / Gemini
+
+Entries live at `users/{uid}/entries/{YYYY-MM-DD}`; the optional exchange
+about a day hangs off it as a `thread` subcollection. The opener, the
+reflection and the insights are direct Gemini calls; the ADK agent handles
+only the "talk this through" conversation.
 
 Every `/api/*` route except the public Firebase web config requires a
 Firebase ID token, verified server-side with the Admin SDK
@@ -121,8 +127,11 @@ Secret Manager.
 ## Test it
 
 1. Open the URL, sign in with Google.
-2. Write an entry; Daybook replies and both sides land in Firestore.
-3. Sign out and back in — the journal persists, and Daybook now opens with a
-   question about what you wrote.
-4. After three or more entries, open **Insights**.
-5. `curl <url>/api/messages` without a token → 401.
+2. Write an entry — it autosaves — then ask Daybook to read it.
+3. Sign out and back in: the entry is still there, and today now opens with
+   a question drawn from it.
+4. Click a marked day in the calendar, or open **Timeline**, to read it back.
+5. After three or more entries, open **Insights**.
+6. Sign in with a second Google account and confirm it sees none of the
+   first account's entries.
+7. `curl <url>/api/entries` without a token → 401.
