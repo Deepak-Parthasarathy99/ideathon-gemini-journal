@@ -81,6 +81,7 @@ async function api(path, options = {}) {
  *  clear both — otherwise the next person to sign in on this device sees the
  *  previous person's entries until their own data arrives. */
 function resetUserUI() {
+  session += 1;
   clearTimeout(saveTimer);
   clearTimeout(reflectTimer);
   openDate = null;
@@ -121,6 +122,7 @@ function showPane(name) {
 // ---------------------------------------------------------------- entry
 
 async function openEntry(dateStr) {
+  const mine = session;
   openDate = dateStr;
 
   // Follow the reader into another month, otherwise just move the mark.
@@ -149,9 +151,10 @@ async function openEntry(dateStr) {
   try {
     data = await api(`/api/entries/${dateStr}`);
   } catch (error) {
-    toast(error.message);
+    if (mine === session) toast(error.message);
     return;
   }
+  if (mine !== session) return;   // signed out while this was in flight
 
   el("entry").value = data.entry.text || "";
   lastSaved = el("entry").value;
@@ -206,7 +209,9 @@ async function reflectNow() {
   el("reflect-hint").hidden = true;
   el("thinking").hidden = false;
   try {
-    await save();
+    // Reflecting on text the server never received would answer the wrong
+    // entry, so a failed save stops here.
+    if (!(await save())) throw new Error("Your writing hasn't saved yet. Trying again.");
     const { reflection } = await api(`/api/entries/${openDate}/reflect`, { method: "POST" });
     reflectedText = text;
     showReflection(reflection);
@@ -266,7 +271,7 @@ function queueSave() {
 
 async function save() {
   const text = el("entry").value;
-  if (!openDate || text === lastSaved) return;
+  if (!openDate || text === lastSaved) return true;
   try {
     const { entry } = await api(`/api/entries/${openDate}`, {
       method: "PUT",
@@ -281,9 +286,11 @@ async function save() {
       reflectedText = null;
     }
     refreshCalendar();
+    return true;
   } catch (error) {
     el("entry-saved").textContent = "Not saved";
     toast(error.message);
+    return false;
   }
 }
 
@@ -636,8 +643,9 @@ el("say").addEventListener("submit", async (event) => {
   if (!text || busy) return;
 
   busy = true;
-  el("say-text").value = "";
-  addTurn("user", text);
+  const input = el("say-text");
+  input.disabled = true;
+  const bubble = addTurn("user", text);
   const waiting = addTurn("echo", "…");
 
   try {
@@ -646,12 +654,16 @@ el("say").addEventListener("submit", async (event) => {
       body: JSON.stringify({ message: text }),
     });
     waiting.textContent = reply;
+    input.value = "";       // cleared only once the server has it
   } catch (error) {
+    // Put the words back rather than making someone retype them.
     waiting.remove();
+    bubble.remove();
     addTurn("error", error.message);
   } finally {
     busy = false;
-    el("say-text").focus();
+    input.disabled = false;
+    input.focus();
   }
 });
 

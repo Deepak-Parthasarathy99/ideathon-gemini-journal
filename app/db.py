@@ -182,14 +182,21 @@ def add_thread_message(uid: str, date: str, role: str, text: str) -> None:
 
 
 def thread(uid: str, date: str, limit: int = 40) -> list[dict]:
-    docs = (
+    """The most recent turns, oldest first.
+
+    Taken newest-first and reversed: ascending with a limit would return the
+    OLDEST forty and quietly stop showing anything said after that, which is
+    the opposite of what a conversation needs.
+    """
+    docs = list(
         _entries(uid)
         .document(date)
         .collection("thread")
-        .order_by("created_at")
+        .order_by("created_at", direction=firestore.Query.DESCENDING)
         .limit(limit)
         .stream()
     )
+    docs.reverse()
     return [
         {"role": (d.to_dict() or {}).get("role"), "text": (d.to_dict() or {}).get("text")}
         for d in docs
