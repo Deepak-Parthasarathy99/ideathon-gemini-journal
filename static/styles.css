@@ -680,4 +680,8 @@ body {
   .entry__head { flex-wrap: wrap; }
 }
 #pick-date { font: inherit; color: var(--text); background: var(--raised); border: 1px solid var(--line); border-radius: 8px; padding: 10px; }
-.entry__text:focus-visible, .cal__day:focus-visible, .menu__item:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* The page you write on gets no focus ring: the caret is the cue, and a
+   box drawn round the whole surface reads as an error state. Every other
+   control keeps its indicator. */
+.cal__day:focus-visible, .menu__item:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.entry__text:focus, .entry__text:focus-visible { outline: none; box-shadow: none; }

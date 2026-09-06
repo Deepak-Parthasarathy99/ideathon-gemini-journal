@@ -83,7 +83,7 @@ async def opener(entries: list[dict]) -> str:
     try:
         response = await generate(
             contents=prompt,
-            config=types.GenerateContentConfig(temperature=0.9, max_output_tokens=256),
+            config=types.GenerateContentConfig(temperature=0.9, max_output_tokens=1024),
         )
         text = (response.text or "").strip().strip('"')
         return text or DEFAULT_OPENER
@@ -127,7 +127,7 @@ async def reflect(text: str, past: list[dict], date: str = "") -> str | None:
     try:
         response = await generate(
             contents=prompt,
-            config=types.GenerateContentConfig(temperature=0.8, max_output_tokens=700),
+            config=types.GenerateContentConfig(temperature=0.8, max_output_tokens=2048),
         )
         return (response.text or "").strip() or None
     except Exception:
@@ -168,7 +168,7 @@ async def insights(entries: list[dict]) -> dict | None:
             contents=prompt,
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
-                max_output_tokens=1600,
+                max_output_tokens=3072,
                 temperature=0.7,
             ),
         )
