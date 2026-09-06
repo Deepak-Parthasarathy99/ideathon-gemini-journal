@@ -64,7 +64,7 @@
         Sign in with Google
       </button>
 
-      <p class="landing__fine">Your entries stay private to your account. Nobody else can read them.</p>
+      <p class="landing__fine">Your entries stay private to your account. Daybook processes your writing with Google Gemini to provide reflections.</p>
     </div>
 
     <div class="landing__preview" aria-hidden="true">
@@ -177,7 +177,8 @@
           <header class="entry__head">
             <h1 class="entry__date" id="entry-date"></h1>
             <span class="entry__weekday" id="entry-weekday"></span>
-            <span class="entry__saved" id="entry-saved"></span>
+            <span class="entry__saved" id="entry-saved" role="status"></span>
+            <button id="save-retry" class="btn btn--quiet" type="button" hidden>Retry save</button>
           </header>
 
           <div class="prompt" id="prompt" hidden>
@@ -189,7 +190,7 @@
           </div>
 
           <label class="visually-hidden" for="entry">Your entry</label>
-          <textarea id="entry" class="entry__text" placeholder="Write about your day…" spellcheck="true"></textarea>
+          <textarea maxlength="20000" id="entry" class="entry__text" placeholder="Write about your day…" spellcheck="true"></textarea>
 
           <p class="hint" id="reflect-hint" hidden>
             <span class="hint__dot" aria-hidden="true"></span>
@@ -231,7 +232,10 @@
       <div class="pane__scroll">
         <div class="col">
           <h1 class="pane__title">Timeline</h1>
+          <label for="pick-date">Open a day</label>
+          <input id="pick-date" type="date">
           <div id="timeline-list"></div>
+          <button id="timeline-more" class="btn btn--quiet" type="button" hidden>Load older entries</button>
           <p class="muted" id="timeline-empty" hidden>Nothing written yet. Start with today.</p>
         </div>
       </div>

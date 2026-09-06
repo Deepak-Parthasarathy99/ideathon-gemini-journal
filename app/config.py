@@ -20,7 +20,9 @@ class Settings:
     # credit pool; Vertex bills the Cloud project, which is where grant
     # credits live. Same code either way.
     use_vertex: bool = os.getenv("GOOGLE_GENAI_USE_VERTEXAI", "FALSE").upper() == "TRUE"
-    location: str = os.getenv("GOOGLE_CLOUD_LOCATION", "us-central1")
+    location: str = os.getenv("GOOGLE_CLOUD_LOCATION", "global")
+    fallback_models = tuple(m.strip() for m in os.getenv("FALLBACK_MODELS", "gemini-3.1-flash-lite,gemini-flash-latest,gemini-3.7-flash").split(",") if m.strip())
+    model_timeout: float = float(os.getenv("MODEL_TIMEOUT_SECONDS", "55"))
 
     rate_limit_per_minute: int = int(os.getenv("RATE_LIMIT_PER_MINUTE", "20"))
 
@@ -45,6 +47,9 @@ class Settings:
             gaps.append("GOOGLE_CLOUD_PROJECT")
         if not self.use_vertex and not self.api_key:
             gaps.append("GOOGLE_API_KEY")
+        for name, value in (("FIREBASE_API_KEY", self.firebase_api_key), ("FIREBASE_AUTH_DOMAIN", self.firebase_auth_domain), ("FIREBASE_APP_ID", self.firebase_app_id)):
+            if not value:
+                gaps.append(name)
         return gaps
 
 

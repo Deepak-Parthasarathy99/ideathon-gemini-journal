@@ -1,217 +1,219 @@
-"""Firestore access, always scoped to one user.
-
-The unit of storage is an ENTRY: one piece of writing belonging to one day,
-at users/{uid}/entries/{YYYY-MM-DD}. Daybook's reflection is a field on that
-entry, not a separate message — which is the whole difference between a
-journal and a chat log.
-
-A "talk this through" exchange hangs off an entry as a subcollection, so a
-conversation is a branch of a day's writing rather than the shape of the
-whole app.
-
-Cloud Run throws the container away between requests, so anything worth
-keeping lands here immediately. Every read and write below is keyed by uid,
-which is where the per-user isolation actually comes from.
-"""
-
+"""Durable journal storage. Every path is bound to the verified user's UID."""
+import hashlib
+import json
 import re
+import time
+import uuid
 from datetime import datetime, timezone
 
 from google.cloud import firestore
-
+from google.cloud.firestore_v1.base_query import FieldFilter
 from .config import settings
 
-_client: firestore.Client | None = None
-
-# The browser tells us which day it is where the person actually is —
-# a server in UTC would file an evening entry in Chennai under tomorrow.
+_client = None
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
+class Conflict(Exception):
+    pass
 
-def valid_date(value: str) -> bool:
-    if not value or not DATE_RE.match(value):
+
+def valid_date(value):
+    if not value or not DATE_RE.fullmatch(value):
         return False
     try:
         datetime.strptime(value, "%Y-%m-%d")
+        return True
     except ValueError:
         return False
-    return True
 
 
-def client() -> firestore.Client:
+def client():
     global _client
     if _client is None:
         _client = firestore.Client(project=settings.project_id or None)
     return _client
 
 
-def _user_doc(uid: str):
+def _user_doc(uid):
     return client().collection("users").document(uid)
 
 
-def _entries(uid: str):
+def _entries(uid):
     return _user_doc(uid).collection("entries")
 
 
-def _clean(data: dict) -> dict:
-    """Drop None values before persisting — the challenge checklist forbids
-    writing undefined fields, and Firestore queries behave better without
-    them anyway."""
+def _clean(data):
     return {k: v for k, v in data.items() if v is not None}
 
 
-def touch_user(uid: str, email: str | None, name: str | None) -> None:
-    """Record that this person exists. Safe to call on every sign-in."""
-    _user_doc(uid).set(
-        _clean(
-            {
-                "email": email,
-                "name": name,
-                "last_seen": datetime.now(timezone.utc),
-            }
-        ),
-        merge=True,
-    )
+def touch_user(uid, email, name):
+    _user_doc(uid).set(_clean({"email": email, "name": name, "last_seen": datetime.now(timezone.utc)}), merge=True)
 
 
-# --- Entries ---------------------------------------------------------------
-
-
-def _row(doc) -> dict:
+def _row(doc):
     data = doc.to_dict() or {}
     updated = data.get("updated_at")
-    return {
-        "date": doc.id,
-        "text": data.get("text", ""),
-        "reflection": data.get("reflection"),
-        "updated_at": updated.isoformat() if updated else None,
-    }
+    updated = updated.isoformat() if hasattr(updated, "isoformat") else None
+    return {"date": doc.id, "text": data.get("text") if isinstance(data.get("text"), str) else "",
+            "reflection": data.get("reflection") if isinstance(data.get("reflection"), str) else None,
+            "updated_at": updated, "revision": data.get("revision") or updated or ""}
 
 
-def get_entry(uid: str, date: str) -> dict | None:
+def get_entry(uid, date):
     doc = _entries(uid).document(date).get()
     return _row(doc) if doc.exists else None
 
 
-def save_entry(uid: str, date: str, text: str) -> dict:
-    """Create or replace the writing for one day.
-
-    Editing the text clears any reflection: Daybook answered what was there
-    before, and leaving a stale response attached to changed writing would
-    be worse than showing none.
-    """
-    existing = get_entry(uid, date)
-    changed = existing is None or existing["text"] != text
-
-    payload = {
-        "text": text,
-        "updated_at": datetime.now(timezone.utc),
-    }
-    if existing is None:
-        payload["created_at"] = datetime.now(timezone.utc)
-    if changed:
-        payload["reflection"] = firestore.DELETE_FIELD
-
-    _entries(uid).document(date).set(_clean(payload), merge=True)
-    return {"date": date, "text": text, "reflection": None if changed else (existing or {}).get("reflection")}
+def save_entry(uid, date, text, expected_text=None):
+    ref = _entries(uid).document(date)
+    @firestore.transactional
+    def write(tx):
+        snap = ref.get(transaction=tx)
+        old = _row(snap) if snap.exists else {"text": "", "reflection": None, "revision": ""}
+        # Retrying a confirmed-but-lost response is safe; never overwrite another draft.
+        if expected_text is not None and old["text"] not in (expected_text, text):
+            raise Conflict("This entry changed in another tab. Copy your draft, then reopen the day to compare it.")
+        if old["text"] == text and snap.exists:
+            return old
+        now = datetime.now(timezone.utc)
+        payload = {"text": text, "updated_at": now, "revision": uuid.uuid4().hex,
+                   "reflection": firestore.DELETE_FIELD, "reflected_at": firestore.DELETE_FIELD}
+        if not snap.exists:
+            payload["created_at"] = now
+        tx.set(ref, payload, merge=True)
+        return {"date": date, "text": text, "reflection": None, "revision": payload["revision"], "updated_at": now.isoformat()}
+    return write(client().transaction())
 
 
-def set_reflection(uid: str, date: str, text: str) -> None:
-    _entries(uid).document(date).set(
-        _clean({"reflection": text, "reflected_at": datetime.now(timezone.utc)}),
-        merge=True,
-    )
+def set_reflection(uid, date, text, revision):
+    ref = _entries(uid).document(date)
+    @firestore.transactional
+    def write(tx):
+        snap = ref.get(transaction=tx)
+        if not snap.exists or _row(snap)["revision"] != revision:
+            raise Conflict("Your writing changed while Daybook was reading. Please ask it to read again.")
+        tx.update(ref, {"reflection": text, "reflected_at": datetime.now(timezone.utc)})
+    write(client().transaction())
 
 
-def list_entries(uid: str, limit: int = 30, before: str | None = None) -> list[dict]:
-    """Recent entries, oldest first, which is what everything downstream wants.
-
-    `before` keeps a day's context honest: filling in last Tuesday should
-    read only what existed by last Tuesday. Without it a reflection on an
-    older entry would quote days that had not happened yet.
-
-    Read and sorted here rather than ordered by Firestore. Document ids are
-    dates, so sorting them as strings is chronological, and doing it in
-    Python needs no index and cannot disagree with the calendar. A journal
-    is tens or hundreds of documents; if one ever ran to thousands this
-    would want a real ordered query on a stored date field.
-    """
-    rows = [_row(d) for d in _entries(uid).stream() if (d.to_dict() or {}).get("text")]
+def list_entries(uid, limit=30, before=None):
+    # Document-ID ordering works for existing data, with no migration or composite index.
+    query = _entries(uid).order_by("__name__", direction=firestore.Query.DESCENDING)
     if before:
-        rows = [r for r in rows if r["date"] < before]
-    rows.sort(key=lambda r: r["date"])
-    return rows[-limit:]
+        query = query.where(filter=FieldFilter("__name__", "<", _entries(uid).document(before)))
+    rows = []
+    # Skip legacy blank entries while keeping each Firestore request bounded.
+    while len(rows) < limit:
+        batch = list(query.limit(max(30, limit)).stream())
+        if not batch:
+            break
+        rows.extend(row for doc in batch if (row := _row(doc))["text"].strip())
+        if len(batch) < max(30, limit):
+            break
+        query = query.start_after(batch[-1])
+    return list(reversed(rows[:limit]))
 
 
-def written_days(uid: str, prefix: str) -> list[str]:
-    """Which days in a month have writing. `prefix` is 'YYYY-MM'.
-
-    Filtered in Python for the same reason as list_entries: no index, and
-    no cursor syntax to get wrong.
-    """
-    return sorted(
-        d.id
-        for d in _entries(uid).stream()
-        if d.id.startswith(prefix) and (d.to_dict() or {}).get("text")
-    )
+def written_days(uid, prefix):
+    ref = _entries(uid)
+    query = ref.where(filter=FieldFilter("__name__", ">=", ref.document(prefix + "-01")))
+    query = query.where(filter=FieldFilter("__name__", "<=", ref.document(prefix + "-31")))
+    return sorted(d.id for d in query.stream() if _row(d)["text"].strip())
 
 
-def delete_entry(uid: str, date: str) -> None:
-    for msg in _entries(uid).document(date).collection("thread").stream():
-        msg.reference.delete()
-    _entries(uid).document(date).delete()
+def delete_entry(uid, date):
+    ref = _entries(uid).document(date)
+    for collection in ("thread", "requests"):
+        for msg in ref.collection(collection).stream():
+            msg.reference.delete()
+    ref.delete()
 
 
-def clear_journal(uid: str) -> int:
-    """Delete everything this person has written. Returns how many days went."""
+def clear_journal(uid):
     days = list(_entries(uid).stream())
     for day in days:
         delete_entry(uid, day.id)
-    for cached in _user_doc(uid).collection("insights").stream():
-        cached.reference.delete()
+    for name in ("insights", "openers"):
+        for cached in _user_doc(uid).collection(name).stream():
+            cached.reference.delete()
     return len(days)
 
 
-# --- The optional exchange hanging off one entry ---------------------------
+def thread(uid, date, limit=40):
+    docs = list(_entries(uid).document(date).collection("thread").order_by("created_at", direction=firestore.Query.DESCENDING).limit(limit).stream())
+    return [{"role": d.to_dict().get("role"), "text": d.to_dict().get("text", "")} for d in reversed(docs)]
 
 
-def add_thread_message(uid: str, date: str, role: str, text: str) -> None:
-    _entries(uid).document(date).collection("thread").add(
-        _clean({"role": role, "text": text, "created_at": datetime.now(timezone.utc)})
-    )
+def begin_turn(uid, date, request_id, message):
+    """Deduplicate retry input and serialize conversation turns across instances."""
+    ref = _entries(uid).document(date)
+    request = ref.collection("requests").document(request_id)
+    @firestore.transactional
+    def begin(tx):
+        entry = ref.get(transaction=tx)
+        previous = request.get(transaction=tx)
+        data = previous.to_dict() or {}
+        if not entry.exists:
+            raise Conflict("This entry no longer exists.")
+        if data and data.get("message") != message:
+            raise Conflict("Retry the original message or send a new message.")
+        if data.get("reply"):
+            return data["reply"]
+        if (entry.to_dict() or {}).get("pending_until", 0) > time.time():
+            raise Conflict("Daybook is still answering. Wait a moment before retrying.")
+        tx.update(ref, {"pending_request": request_id, "pending_until": time.time() + 90})
+        tx.set(request, {"message": message}, merge=True)
+        if not previous.exists:
+            tx.set(ref.collection("thread").document(request_id + "-user"),
+                   {"role": "user", "text": message, "created_at": datetime.now(timezone.utc)})
+        return None
+    return begin(client().transaction())
 
 
-def thread(uid: str, date: str, limit: int = 40) -> list[dict]:
-    """The most recent turns, oldest first.
-
-    Taken newest-first and reversed: ascending with a limit would return the
-    OLDEST forty and quietly stop showing anything said after that, which is
-    the opposite of what a conversation needs.
-    """
-    docs = list(
-        _entries(uid)
-        .document(date)
-        .collection("thread")
-        .order_by("created_at", direction=firestore.Query.DESCENDING)
-        .limit(limit)
-        .stream()
-    )
-    docs.reverse()
-    return [
-        {"role": (d.to_dict() or {}).get("role"), "text": (d.to_dict() or {}).get("text")}
-        for d in docs
-    ]
+def finish_turn(uid, date, request_id, reply=None):
+    ref = _entries(uid).document(date)
+    @firestore.transactional
+    def finish(tx):
+        entry = ref.get(transaction=tx)
+        if not entry.exists or entry.to_dict().get("pending_request") != request_id:
+            raise Conflict("The conversation changed. Reopen the entry before continuing.")
+        if reply is not None:
+            tx.set(ref.collection("requests").document(request_id), {"reply": reply}, merge=True)
+            tx.set(ref.collection("thread").document(request_id + "-assistant"),
+                   {"role": "assistant", "text": reply, "created_at": datetime.now(timezone.utc)})
+        tx.update(ref, {"pending_request": firestore.DELETE_FIELD, "pending_until": firestore.DELETE_FIELD})
+    finish(client().transaction())
 
 
-# --- Insights cache --------------------------------------------------------
+def allow_model(uid, per_minute):
+    ref = _user_doc(uid).collection("limits").document("model")
+    @firestore.transactional
+    def claim(tx):
+        snap = ref.get(transaction=tx)
+        now = time.time()
+        hits = [t for t in (snap.to_dict() or {}).get("hits", []) if t > now - 60]
+        if len(hits) >= per_minute:
+            return False
+        tx.set(ref, {"hits": hits + [now]})
+        return True
+    return claim(client().transaction())
 
 
-def cached_insights(uid: str, day: str) -> dict | None:
-    doc = _user_doc(uid).collection("insights").document(day).get()
-    return doc.to_dict() if doc.exists else None
+def fingerprint(entries):
+    return hashlib.sha256(json.dumps([(e["date"], e["text"]) for e in entries], ensure_ascii=False).encode()).hexdigest()
 
 
-def save_insights(uid: str, day: str, report: dict) -> None:
-    _user_doc(uid).collection("insights").document(day).set(
-        _clean({**report, "created_at": datetime.now(timezone.utc)})
-    )
+def cached_insights(uid, day):
+    return _user_doc(uid).collection("insights").document(day).get().to_dict()
+
+
+def save_insights(uid, day, report):
+    _user_doc(uid).collection("insights").document(day).set(_clean({**report, "created_at": datetime.now(timezone.utc)}))
+
+
+def cached_opener(uid):
+    return _user_doc(uid).collection("openers").document("current").get().to_dict()
+
+
+def save_opener(uid, report):
+    _user_doc(uid).collection("openers").document("current").set(_clean(report))

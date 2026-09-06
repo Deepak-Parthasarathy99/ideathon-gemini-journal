@@ -1,10 +1,8 @@
-# Server
-fastapi>=0.115
-uvicorn[standard]>=0.30
-
-# Google
+# Pin the versions used for regression verification; no framework upgrade.
+fastapi==0.141.1
+uvicorn[standard]==0.52.4
 google-adk==2.2.0
-firebase-admin>=6.5
-google-cloud-firestore>=2.19
-
-python-dotenv>=1.0
+google-genai==2.20.0
+firebase-admin==7.5.0
+google-cloud-firestore==2.29.0
+python-dotenv==1.2.3

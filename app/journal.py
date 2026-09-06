@@ -10,6 +10,7 @@ user's own history as the only context. Nothing in this module depends on
 the model deciding to use a tool, so behaviour stays predictable.
 """
 
+import asyncio
 import json
 import logging
 
@@ -40,7 +41,23 @@ def client() -> genai.Client:
 def _entries_block(entries: list[dict]) -> str:
     """Past entries as a plain dated list. Journal text is data, never
     instructions — the prompts below say so explicitly."""
-    return "\n".join(f"[{e.get('date', '')}] {e.get('text', '')}" for e in entries)
+    return "\n".join(f"[{e.get('date', '')}] {e.get('text', '')[:2500]}" for e in entries)
+
+
+async def generate(contents, config, skip_primary=False):
+    """Bound the total wait and fail over only for transient/unavailable models."""
+    models = tuple(dict.fromkeys((settings.model, *settings.fallback_models)))
+    if skip_primary and len(models) > 1:
+        models = models[1:]
+    async with asyncio.timeout(settings.model_timeout):
+        for index, model in enumerate(models):
+            try:
+                return await asyncio.wait_for(client().aio.models.generate_content(
+                    model=model, contents=contents, config=config), timeout=18)
+            except Exception as exc:
+                if index == len(models) - 1 or (not isinstance(exc, TimeoutError) and getattr(exc, "code", None) not in (404, 429, 500, 503)):
+                    raise
+                log.warning("Model unavailable; trying configured fallback")
 
 
 DEFAULT_OPENER = "What's on your mind today?"
@@ -64,10 +81,9 @@ async def opener(entries: list[dict]) -> str:
     )
 
     try:
-        response = await client().aio.models.generate_content(
-            model=settings.model,
+        response = await generate(
             contents=prompt,
-            config=types.GenerateContentConfig(temperature=0.9),
+            config=types.GenerateContentConfig(temperature=0.9, max_output_tokens=256),
         )
         text = (response.text or "").strip().strip('"')
         return text or DEFAULT_OPENER
@@ -109,10 +125,9 @@ async def reflect(text: str, past: list[dict], date: str = "") -> str | None:
     )
 
     try:
-        response = await client().aio.models.generate_content(
-            model=settings.model,
+        response = await generate(
             contents=prompt,
-            config=types.GenerateContentConfig(temperature=0.8),
+            config=types.GenerateContentConfig(temperature=0.8, max_output_tokens=700),
         )
         return (response.text or "").strip() or None
     except Exception:
@@ -149,11 +164,11 @@ async def insights(entries: list[dict]) -> dict | None:
     )
 
     try:
-        response = await client().aio.models.generate_content(
-            model=settings.model,
+        response = await generate(
             contents=prompt,
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
+                max_output_tokens=1600,
                 temperature=0.7,
             ),
         )
@@ -165,6 +180,8 @@ async def insights(entries: list[dict]) -> dict | None:
     if not isinstance(data, dict):
         return None
 
+    if not all(isinstance(data.get(key), str) and data[key].strip() for key in ("mood_arc", "observation", "suggestion")):
+        return None
     themes = data.get("themes")
     return {
         "themes": [str(t) for t in themes[:4]] if isinstance(themes, list) else [],

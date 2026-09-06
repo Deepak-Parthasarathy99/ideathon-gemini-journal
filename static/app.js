@@ -20,6 +20,19 @@ let reflectTimer = null;
 let lastSaved = "";
 let reflectedText = null;   // the text Daybook has already answered
 let busy = false;
+let session = 0;
+let entryLoad = 0;
+let calendarLoad = 0;
+let timelineLoad = 0;
+let insightsLoad = 0;
+let entryLoading = false;
+let loadedDate = null;
+let savePromise = null;
+let nextBefore = null;
+let pendingChat = null;
+const requests = new Set();
+const sameEntry = (epoch, date, load) => epoch === session && date === openDate && load === entryLoad;
+class StaleRequest extends Error {}
 
 // Short enough that the pause never reads as the app being stuck. Leaving
 // the text box entirely counts as finishing and skips the wait.
@@ -56,24 +69,32 @@ function toast(text) {
 
 /** Every authenticated call goes through here, so the token is never forgotten. */
 async function api(path, options = {}) {
-  const user = auth.currentUser;
-  if (!user) throw new Error("signed out");
-
-  const token = await user.getIdToken();
-  const response = await fetch(path, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-      ...(options.headers || {}),
-    },
-  });
-
-  if (!response.ok) {
+  const user = auth?.currentUser;
+  const epoch = session;
+  if (!user) throw new Error("Sign in to continue.");
+  const controller = new AbortController();
+  requests.add(controller);
+  const timeout = setTimeout(() => controller.abort(), 75000);
+  const current = () => epoch === session && auth?.currentUser?.uid === user.uid;
+  try {
+    const token = await user.getIdToken();
+    if (!current()) throw new StaleRequest();
+    const response = await fetch(path, {
+      ...options, signal: controller.signal,
+      headers: {"Content-Type": "application/json", Authorization: `Bearer ${token}`, ...(options.headers || {})},
+    });
     const body = await response.json().catch(() => ({}));
-    throw new Error(body.detail || "Something went wrong.");
+    if (!current()) throw new StaleRequest();
+    if (!response.ok) throw new Error(typeof body.detail === "string" ? body.detail : "Please check your input and retry.");
+    return body;
+  } catch (error) {
+    if (!current()) throw new StaleRequest();
+    if (error.name === "AbortError") throw new Error("The request timed out. Your draft is kept; please retry.");
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+    requests.delete(controller);
   }
-  return response.json();
 }
 
 /** Wipe every trace of whoever was signed in before.
@@ -82,9 +103,28 @@ async function api(path, options = {}) {
  *  previous person's entries until their own data arrives. */
 function resetUserUI() {
   session += 1;
+  entryLoad += 1;
+  requests.forEach(controller => controller.abort());
+  requests.clear();
+  busy = false;
+  entryLoading = false;
+  savePromise = null;
+  pendingChat = null;
+  nextBefore = null;
+  el("say-text").value = "";
+  el("say-text").disabled = false;
+  el("entry").readOnly = true;
+  el("save-retry").hidden = true;
+  el("timeline-more").hidden = true;
+  el("insights-loading").hidden = true;
+  el("theme-menu").hidden = true;
+  el("account").setAttribute("aria-expanded", "false");
+  for (const id of ["reflection-text", "prompt-text", "prompt-from", "insights-mood", "insights-observation", "insights-suggestion", "insights-meta", "nav-email", "avatar"]) el(id).textContent = "";
+  el("insights-themes").innerHTML = "";
   clearTimeout(saveTimer);
   clearTimeout(reflectTimer);
   openDate = null;
+  loadedDate = null;
   lastSaved = "";
   reflectedText = null;
   el("entry").value = "";
@@ -116,60 +156,62 @@ function showPane(name) {
     const on = pane === `pane-${name}`;
     el(pane).dataset.active = String(on);
     el(nav).dataset.active = String(on);
+    el(nav).setAttribute("aria-current", on ? "page" : "false");
   }
 }
 
 // ---------------------------------------------------------------- entry
 
 async function openEntry(dateStr) {
+  if (busy) { toast("Let Daybook finish before changing days."); return; }
+  if (openDate !== dateStr && el("say-text").value.trim()) {
+    toast("Send or clear your reply before changing days."); return;
+  }
   const mine = session;
+  // Flush the old day before changing the date used by autosave.
+  if (!entryLoading && !(await save())) return;
+  if (mine !== session) return;
+  const load = ++entryLoad;
+  clearTimeout(saveTimer);
+  clearTimeout(reflectTimer);
+  entryLoading = true;
+  el("entry").readOnly = true;
+  const previousDate = loadedDate;
   openDate = dateStr;
-
-  // Follow the reader into another month, otherwise just move the mark.
-  const d = parse(dateStr);
-  if (!calMonth || d.getMonth() !== calMonth.getMonth() || d.getFullYear() !== calMonth.getFullYear()) {
-    calMonth = new Date(d.getFullYear(), d.getMonth(), 1);
-    refreshCalendar();
-  } else {
-    markCalendarSelection();
-  }
-
-  const { date, weekday } = heading(dateStr);
-  el("entry-date").textContent = date;
-  el("entry-weekday").textContent = weekday;
-  el("entry-saved").textContent = "";
-
-  el("thread").innerHTML = "";
-  el("thread").hidden = true;
-  el("say").hidden = true;
-  el("reflection").hidden = true;
-  el("reflect-cta").hidden = true;
-  el("reflect-hint").hidden = true;
-  el("thinking").hidden = true;
-
-  let data;
   try {
-    data = await api(`/api/entries/${dateStr}`);
+    const data = await api(`/api/entries/${dateStr}`);
+    if (!sameEntry(mine, dateStr, load)) return;
+    loadedDate = dateStr;
+    showPane("entry");
+    const d = parse(dateStr);
+    calMonth = new Date(d.getFullYear(), d.getMonth(), 1);
+    const {date, weekday} = heading(dateStr);
+    el("entry-date").textContent = date;
+    el("entry-weekday").textContent = weekday;
+    el("entry-saved").textContent = "";
+    el("entry").value = data.entry.text || "";
+    lastSaved = el("entry").value;
+    el("entry").readOnly = false;
+    entryLoading = false;
+    el("say-text").value = "";
+    pendingChat = null;
+    for (const id of ["thread", "say", "reflection", "reflect-cta", "reflect-hint", "thinking", "prompt"]) el(id).hidden = true;
+    el("thread").innerHTML = "";
+    reflectedText = data.entry.reflection ? lastSaved.trim() : null;
+    autosize();
+    if (data.entry.reflection) showReflection(data.entry.reflection);
+    else queueReflection();
+    (data.thread || []).forEach(m => addTurn(m.role === "user" ? "user" : "echo", m.text));
+    if (data.thread?.length) el("say").hidden = false;
+    if (dateStr === today() && !lastSaved.trim()) loadOpener();
+    refreshCalendar();
   } catch (error) {
-    if (mine === session) toast(error.message);
-    return;
+    if (!sameEntry(mine, dateStr, load)) return;
+    openDate = previousDate;
+    entryLoading = false;
+    el("entry").readOnly = !previousDate;
+    toast(error.message);
   }
-  if (mine !== session) return;   // signed out while this was in flight
-
-  el("entry").value = data.entry.text || "";
-  lastSaved = el("entry").value;
-  autosize();
-
-  reflectedText = data.entry.reflection ? el("entry").value.trim() : null;
-  if (data.entry.reflection) showReflection(data.entry.reflection);
-  else queueReflection();
-
-  (data.thread || []).forEach((m) => addTurn(m.role === "user" ? "user" : "echo", m.text));
-  if (data.thread && data.thread.length) el("thread").hidden = false;
-
-  // The opener belongs to today only — older days already have their answer.
-  el("prompt").hidden = true;
-  if (dateStr === today() && !el("entry").value.trim()) loadOpener();
 }
 
 function showReflection(text) {
@@ -194,6 +236,12 @@ function queueReflection() {
   const ready = text.length >= REFLECT_MIN_CHARS && text !== reflectedText;
 
   el("reflect-hint").hidden = !ready || !el("thinking").hidden;
+  if (!busy && text && text !== reflectedText) {
+    el("reflect-cta").hidden = false;
+    el("reflect-failed").textContent = "";
+    el("reflect").textContent = "Read this entry";
+  }
+  if (!text || text === reflectedText) el("reflect-cta").hidden = true;
   if (!ready) return;
 
   reflectTimer = setTimeout(reflectNow, REFLECT_AFTER_MS);
@@ -201,29 +249,32 @@ function queueReflection() {
 
 async function reflectNow() {
   const text = el("entry").value.trim();
-  if (busy || !openDate || text.length < REFLECT_MIN_CHARS || text === reflectedText) return;
-
+  if (busy || entryLoading || !openDate || !text || text === reflectedText) return;
+  const epoch = session, date = openDate, load = entryLoad;
   busy = true;
   clearTimeout(reflectTimer);
   el("reflect-cta").hidden = true;
   el("reflect-hint").hidden = true;
   el("thinking").hidden = false;
   try {
-    // Reflecting on text the server never received would answer the wrong
-    // entry, so a failed save stops here.
-    if (!(await save())) throw new Error("Your writing hasn't saved yet. Trying again.");
-    const { reflection } = await api(`/api/entries/${openDate}/reflect`, { method: "POST" });
+    if (!(await save())) throw new Error("Your writing has not saved. Use Retry save before asking Daybook.");
+    if (!sameEntry(epoch, date, load) || el("entry").value.trim() !== text) return;
+    const {reflection} = await api(`/api/entries/${date}/reflect`, {method: "POST"});
+    if (!sameEntry(epoch, date, load) || el("entry").value.trim() !== text) return;
     reflectedText = text;
     showReflection(reflection);
   } catch (error) {
-    el("thinking").hidden = true;
-    el("reflect-hint").hidden = true;
+    if (!sameEntry(epoch, date, load)) return;
     el("reflect-failed").textContent = error.message;
+    el("reflect").textContent = "Try again";
     el("reflect-cta").hidden = false;
-    console.error("reflection failed:", error.message);
     toast(error.message);
   } finally {
-    busy = false;
+    if (sameEntry(epoch, date, load)) {
+      busy = false;
+      el("thinking").hidden = true;
+      el("reflect-hint").hidden = true;
+    }
   }
 }
 
@@ -250,8 +301,10 @@ function autosize() {
 }
 
 async function loadOpener() {
+  const epoch = session, date = openDate, load = entryLoad;
   try {
     const { opener, from } = await api("/api/opener");
+    if (!sameEntry(epoch, date, load) || el("entry").value.trim()) return;
     el("prompt-text").textContent = opener;
     el("prompt-from").textContent = from
       ? `From ${heading(from).date}`
@@ -270,33 +323,52 @@ function queueSave() {
 }
 
 async function save() {
-  const text = el("entry").value;
-  if (!openDate || text === lastSaved) return true;
-  try {
-    const { entry } = await api(`/api/entries/${openDate}`, {
-      method: "PUT",
-      body: JSON.stringify({ text }),
-    });
-    lastSaved = text;
-    el("entry-saved").textContent = text.trim() ? "Saved" : "";
-    // Editing clears an earlier reflection server-side; mirror that here.
-    if (!entry.reflection) {
-      el("reflection").hidden = true;
-      el("say").hidden = true;
-      reflectedText = null;
+  if (entryLoading) return false;
+  if (!openDate) return true;
+  if (savePromise) return savePromise;
+  const epoch = session, date = openDate, load = entryLoad;
+  const operation = (async () => {
+    try {
+      while (sameEntry(epoch, date, load) && el("entry").value.trim() !== lastSaved.trim()) {
+        const text = el("entry").value;
+        const {entry} = await api(`/api/entries/${date}`, {
+          method: "PUT", body: JSON.stringify({text, expected_text: lastSaved.trim()}),
+        });
+        if (!sameEntry(epoch, date, load)) return false;
+        lastSaved = entry.text;
+        insightsLoaded = false;
+        insightsLoad += 1;
+        el("insights-report").hidden = true;
+        el("save-retry").hidden = true;
+        if (!entry.reflection) {
+          el("reflection").hidden = true;
+          // Keep an unsent chat draft visible.
+          if (!el("say-text").value.trim()) el("say").hidden = true;
+          reflectedText = null;
+        }
+      }
+      if (!sameEntry(epoch, date, load)) return false;
+      el("entry-saved").textContent = lastSaved.trim() ? "Saved" : "";
+      refreshCalendar();
+      return true;
+    } catch (error) {
+      if (sameEntry(epoch, date, load)) {
+        el("entry-saved").textContent = "Not saved";
+        el("save-retry").hidden = false;
+        toast(error.message);
+      }
+      return false;
     }
-    refreshCalendar();
-    return true;
-  } catch (error) {
-    el("entry-saved").textContent = "Not saved";
-    toast(error.message);
-    return false;
-  }
+  })();
+  savePromise = operation;
+  try { return await operation; }
+  finally { if (savePromise === operation) savePromise = null; }
 }
 
 // -------------------------------------------------------------- calendar
 
 async function refreshCalendar() {
+  const epoch = session, request = ++calendarLoad;
   if (!calMonth) calMonth = new Date();
   const y = calMonth.getFullYear();
   const m = calMonth.getMonth();
@@ -306,9 +378,8 @@ async function refreshCalendar() {
   let written = [];
   try {
     ({ days: written } = await api(`/api/calendar/${prefix}`));
-  } catch {
-    // A calendar that can't load should not take the page with it.
-  }
+  } catch { return; }
+  if (epoch !== session || request !== calendarLoad) return;
   const has = new Set(written);
 
   const grid = el("cal-grid");
@@ -331,12 +402,13 @@ async function refreshCalendar() {
     if (has.has(dateStr)) b.dataset.written = "true";
     if (dateStr === now) b.dataset.today = "true";
     if (dateStr > now) { b.disabled = true; b.dataset.in = "false"; }
-    else b.addEventListener("click", () => { showPane("entry"); openEntry(dateStr); });
+    else b.addEventListener("click", () => openEntry(dateStr));
+    b.setAttribute("aria-label", `${heading(dateStr).date}, ${y}${has.has(dateStr) ? ", has an entry" : ""}`);
     grid.appendChild(b);
   }
 
   markCalendarSelection();
-  renderWeek(has);
+  refreshWeek();
 }
 
 /** Which day you are reading, which is not the same as which day it is.
@@ -344,7 +416,23 @@ async function refreshCalendar() {
 function markCalendarSelection() {
   document
     .querySelectorAll(".cal__day")
-    .forEach((b) => (b.dataset.selected = String(b.dataset.date === openDate)));
+    .forEach((b) => {
+      b.dataset.selected = String(b.dataset.date === openDate);
+      b.setAttribute("aria-pressed", b.dataset.selected);
+    });
+}
+
+async function refreshWeek() {
+  const epoch = session, request = calendarLoad;
+  const monday = new Date();
+  monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
+  const sunday = new Date(monday); sunday.setDate(sunday.getDate() + 6);
+  const months = [...new Set([iso(monday).slice(0, 7), iso(sunday).slice(0, 7)])];
+  try {
+    const values = await Promise.all(months.map(m => api(`/api/calendar/${m}`)));
+    if (epoch !== session || request !== calendarLoad) return;
+    renderWeek(new Set(values.flatMap(v => v.days)));
+  } catch { /* Calendar remains usable if the activity summary fails. */ }
 }
 
 function renderWeek(written) {
@@ -375,17 +463,25 @@ function renderWeek(written) {
 
 // -------------------------------------------------------------- timeline
 
-async function loadTimeline() {
-  let entries = [];
+async function loadTimeline(more = false) {
+  const epoch = session, request = ++timelineLoad;
+  el("timeline-more").disabled = true;
+  let entries = [], next_before = null;
   try {
-    ({ entries } = await api("/api/entries"));
+    ({ entries, next_before } = await api(more && nextBefore ? `/api/entries?before=${nextBefore}` : "/api/entries"));
   } catch (error) {
+    if (epoch !== session || request !== timelineLoad) return;
+    el("timeline-more").disabled = false;
     toast(error.message);
     return;
   }
 
+  if (epoch !== session || request !== timelineLoad) return;
+  nextBefore = next_before;
+  el("timeline-more").disabled = false;
+  el("timeline-more").hidden = !nextBefore;
   const list = el("timeline-list");
-  list.innerHTML = "";
+  if (!more) list.innerHTML = "";
   el("timeline-empty").hidden = entries.length > 0;
 
   entries.slice().reverse().forEach((e) => {
@@ -400,7 +496,7 @@ async function loadTimeline() {
     row.querySelector(".day__mon").textContent = MONTHS[d.getMonth()];
     row.querySelector(".day__text").textContent = e.text;
     row.querySelector(".day__tag").textContent = e.reflection ? "Daybook replied" : "";
-    row.addEventListener("click", () => { showPane("entry"); openEntry(e.date); });
+    row.addEventListener("click", () => openEntry(e.date));
     list.appendChild(row);
   });
 }
@@ -424,13 +520,15 @@ function renderInsights(report) {
 }
 
 async function loadInsights(refresh = false) {
+  const epoch = session, request = ++insightsLoad;
   el("insights-error").hidden = true;
   el("insights-empty").hidden = true;
   el("insights-report").hidden = true;
   el("insights-loading").hidden = false;
 
   try {
-    const { insights } = await api(refresh ? "/api/insights?refresh=true" : "/api/insights");
+    const { insights } = await api(`/api/insights?day=${today()}&refresh=${refresh}`);
+    if (epoch !== session || request !== insightsLoad) return;
     el("insights-loading").hidden = true;
 
     // Everything here comes from the person's own entries. With nothing to
@@ -443,6 +541,7 @@ async function loadInsights(refresh = false) {
     el("insights-report").hidden = false;
     insightsLoaded = true;
   } catch (error) {
+    if (epoch !== session || request !== insightsLoad) return;
     el("insights-loading").hidden = true;
     el("insights-error-detail").textContent = error.message;
     el("insights-error").hidden = false;
@@ -529,10 +628,12 @@ async function start() {
     el("avatar").textContent = (user.displayName || user.email || "?").trim().charAt(0).toUpperCase();
     el("nav-email").textContent = user.email || "";
 
+    const epoch = session;
     try {
       await api("/api/me");
+      if (epoch !== session) return;
     } catch (error) {
-      toast(error.message);
+      if (epoch === session) toast(error.message);
       return;
     }
 
@@ -598,14 +699,23 @@ document.addEventListener("keydown", (event) => {
 
 el("signout").addEventListener("click", () => el("confirm-signout").showModal());
 el("confirm-cancel").addEventListener("click", () => el("confirm-signout").close());
-el("confirm-ok").addEventListener("click", () => {
-  el("confirm-signout").close();
-  signOut(auth);
+el("confirm-ok").addEventListener("click", async () => {
+  if (busy) { toast("Wait for Daybook to finish before signing out."); return; }
+  if (el("say-text").value.trim()) { toast("Send or clear your reply before signing out."); return; }
+  const epoch = session;
+  if (!(await save()) || epoch !== session) return;
+  try { await signOut(auth); el("confirm-signout").close(); }
+  catch (error) { toast(error.message); }
 });
 
-el("nav-today").addEventListener("click", () => { showPane("entry"); openEntry(today()); });
-el("nav-timeline").addEventListener("click", () => { showPane("timeline"); loadTimeline(); });
-el("nav-insights").addEventListener("click", () => {
+el("nav-today").addEventListener("click", () => openEntry(today()));
+el("nav-timeline").addEventListener("click", async () => {
+  const epoch = session;
+  if (await save() && epoch === session) { showPane("timeline"); loadTimeline(); }
+});
+el("nav-insights").addEventListener("click", async () => {
+  const epoch = session;
+  if (!(await save()) || epoch !== session) return;
   showPane("insights");
   if (!insightsLoaded) loadInsights();
 });
@@ -622,6 +732,7 @@ el("cal-next").addEventListener("click", () => {
 });
 
 el("entry").addEventListener("input", () => {
+  el("reflection").hidden = true;
   autosize();
   queueSave();
   queueReflection();
@@ -632,39 +743,58 @@ el("entry").addEventListener("input", () => {
 el("entry").addEventListener("blur", () => {
   save();
   clearTimeout(reflectTimer);
-  reflectNow();
+  if (el("entry").value.trim().length >= REFLECT_MIN_CHARS) reflectNow();
 });
 
 el("reflect").addEventListener("click", reflectNow);
 
 el("say").addEventListener("submit", async (event) => {
   event.preventDefault();
-  const text = el("say-text").value.trim();
-  if (!text || busy) return;
-
-  busy = true;
   const input = el("say-text");
+  const text = input.value.trim();
+  if (!text || busy || entryLoading || !openDate) return;
+  const epoch = session, date = openDate, load = entryLoad;
+  busy = true;
   input.disabled = true;
+  if (!pendingChat || pendingChat.text !== text || pendingChat.date !== date) {
+    pendingChat = {text, date, id: crypto.randomUUID()};
+  }
+  const requestId = pendingChat.id;
   const bubble = addTurn("user", text);
   const waiting = addTurn("echo", "…");
-
   try {
-    const { reply } = await api(`/api/entries/${openDate}/thread`, {
-      method: "POST",
-      body: JSON.stringify({ message: text }),
+    if (!(await save())) throw new Error("Save your entry before sending a reply.");
+    if (!sameEntry(epoch, date, load)) return;
+    const {reply} = await api(`/api/entries/${date}/thread`, {
+      method: "POST", body: JSON.stringify({message: text, request_id: requestId}),
     });
+    if (!sameEntry(epoch, date, load)) return;
     waiting.textContent = reply;
-    input.value = "";       // cleared only once the server has it
+    input.value = "";
+    pendingChat = null;
   } catch (error) {
-    // Put the words back rather than making someone retype them.
-    waiting.remove();
-    bubble.remove();
+    if (!sameEntry(epoch, date, load)) return;
+    waiting.remove(); bubble.remove();
     addTurn("error", error.message);
   } finally {
-    busy = false;
-    input.disabled = false;
-    input.focus();
+    if (sameEntry(epoch, date, load)) {
+      busy = false;
+      input.disabled = false;
+      input.focus();
+    }
   }
 });
 
-start();
+el("save-retry").addEventListener("click", () => save());
+el("timeline-more").addEventListener("click", () => loadTimeline(true));
+el("pick-date").max = today();
+el("pick-date").addEventListener("change", event => {
+  if (event.target.value && event.target.value <= today()) openEntry(event.target.value);
+});
+window.addEventListener("beforeunload", event => {
+  if ((openDate && el("entry").value.trim() !== lastSaved.trim()) || el("say-text").value.trim() || savePromise) {
+    event.preventDefault(); event.returnValue = "";
+  }
+});
+
+start().catch(() => { booted(); el("view-signin").dataset.active = "true"; toast("Could not start sign-in. Please reload and try again."); });

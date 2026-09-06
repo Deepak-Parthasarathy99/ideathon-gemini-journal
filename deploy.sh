@@ -1,74 +1,59 @@
 #!/usr/bin/env bash
-# Deploy to Cloud Run. Run from the project root.
-#
-# One region everywhere. Mismatched regions produce errors that explain nothing.
+# Existing services are staged without changing their current traffic or env.
 set -euo pipefail
-
-# Read .env if it's there, so the Firebase web config doesn't have to be
-# exported by hand. Values already in the environment win.
-if [ -f .env ]; then
-  set -a
-  # shellcheck disable=SC1091
-  . ./.env
-  set +a
-fi
-
+cd "$(dirname "$0")"
 PROJECT_ID="${PROJECT_ID:-$(gcloud config get-value project)}"
 REGION="${REGION:-asia-south1}"
 SERVICE="${SERVICE:-echo-journal}"
-SA="${SERVICE}-sa@${PROJECT_ID}.iam.gserviceaccount.com"
-
-# Vertex bills the Cloud project and authenticates as the service account,
-# so no API key is mounted in that mode.
-# An empty value counts as unset here: .env ships the key blank on the
-# Vertex path, and a blank must not read as "use AI Studio".
-USE_VERTEX="${GOOGLE_GENAI_USE_VERTEXAI:-TRUE}"
-[ -z "${USE_VERTEX}" ] && USE_VERTEX="TRUE"
-LOCATION="${GOOGLE_CLOUD_LOCATION:-us-central1}"
-if [ "${USE_VERTEX}" = "TRUE" ]; then
-  SECRET_FLAG=""
+if [[ -z "$PROJECT_ID" || "$PROJECT_ID" == '(unset)' ]]; then
+  echo 'Set PROJECT_ID to your Google Cloud project.' >&2; exit 1
+fi
+DEPLOY_STATE=$(mktemp)
+DEPLOY_RESULT=$(mktemp)
+trap 'rm -f "$DEPLOY_STATE" "$DEPLOY_RESULT"' EXIT
+# Listing successfully distinguishes a missing service from denied access.
+EXISTING=$(gcloud run services list --project "$PROJECT_ID" --region "$REGION" --filter="metadata.name=$SERVICE" --format='value(metadata.name)')
+ARGS=(run deploy "$SERVICE" --source . --project "$PROJECT_ID" --region "$REGION" --labels dev-tutorial=cloud-run-ai-challenge --timeout 120)
+if [[ -n "$EXISTING" ]]; then
+  gcloud run services describe "$SERVICE" --project "$PROJECT_ID" --region "$REGION" --format=json > "$DEPLOY_STATE"
+  ARGS+=(--no-traffic --tag candidate)
 else
-  SECRET_FLAG="--set-secrets=GOOGLE_API_KEY=gemini-api-key:latest"
+  # Only a NEW service consumes .env. Existing service config is preserved.
+  if [[ -f .env ]]; then set -a; source .env; set +a; fi
+  : "${FIREBASE_API_KEY:?Set FIREBASE_API_KEY in .env}"
+  : "${FIREBASE_AUTH_DOMAIN:?Set FIREBASE_AUTH_DOMAIN in .env}"
+  : "${FIREBASE_APP_ID:?Set FIREBASE_APP_ID in .env}"
+  PROVIDER="${GOOGLE_GENAI_USE_VERTEXAI:-FALSE}"
+  SA="${SERVICE_ACCOUNT:-${SERVICE}-sa@${PROJECT_ID}.iam.gserviceaccount.com}"
+  ARGS+=(--allow-unauthenticated --service-account "$SA" --max-instances 2)
+  ARGS+=(--update-env-vars "GOOGLE_CLOUD_PROJECT=${PROJECT_ID},FIREBASE_PROJECT_ID=${FIREBASE_PROJECT_ID:-$PROJECT_ID},GOOGLE_GENAI_USE_VERTEXAI=${PROVIDER},GOOGLE_CLOUD_LOCATION=${GOOGLE_CLOUD_LOCATION:-global},MODEL=${MODEL:-gemini-3.6-flash},FIREBASE_API_KEY=${FIREBASE_API_KEY},FIREBASE_AUTH_DOMAIN=${FIREBASE_AUTH_DOMAIN},FIREBASE_APP_ID=${FIREBASE_APP_ID}")
+  if [[ "$PROVIDER" != TRUE && "$PROVIDER" != true ]]; then
+    ARGS+=(--update-secrets GOOGLE_API_KEY=gemini-api-key:latest)
+  fi
 fi
-
-# Fail here, with a sentence that says what to do, rather than inside gcloud.
-missing=""
-for var in FIREBASE_API_KEY FIREBASE_AUTH_DOMAIN FIREBASE_APP_ID; do
-  [ -z "${!var:-}" ] && missing="${missing} ${var}"
-done
-if [ -n "${missing}" ]; then
-  echo "Missing Firebase web config:${missing}"
-  echo "Get it from the Firebase console > Project settings > Your apps > Web app,"
-  echo "then put it in .env (see .env.example). Sign-in cannot work without it."
-  exit 1
-fi
-
-echo "Deploying ${SERVICE} to ${REGION} in ${PROJECT_ID}"
-if [ "${USE_VERTEX}" = "TRUE" ]; then
-  echo "Model backend: Vertex AI (${LOCATION}), billed to the Cloud project"
-else
-  echo "Model backend: AI Studio, key from Secret Manager"
-fi
-
-gcloud run deploy "${SERVICE}" \
-  --source . \
-  --project "${PROJECT_ID}" \
-  --region "${REGION}" \
-  --service-account "${SA}" \
-  --allow-unauthenticated \
-  --labels "dev-tutorial=cloud-run-ai-challenge" \
-  --set-env-vars "GOOGLE_CLOUD_PROJECT=${PROJECT_ID},GOOGLE_GENAI_USE_VERTEXAI=${USE_VERTEX},GOOGLE_CLOUD_LOCATION=${LOCATION},MODEL=${MODEL:-gemini-3.6-flash},FIREBASE_API_KEY=${FIREBASE_API_KEY},FIREBASE_AUTH_DOMAIN=${FIREBASE_AUTH_DOMAIN},FIREBASE_APP_ID=${FIREBASE_APP_ID}" \
-  ${SECRET_FLAG}
-
-URL="$(gcloud run services describe "${SERVICE}" --region "${REGION}" \
-  --project "${PROJECT_ID}" --format='value(status.url)')"
-
-echo
-echo "Live at: ${URL}"
-echo
-echo "Last step, or sign-in will fail:"
-echo "  Firebase console > Authentication > Settings > Authorized domains"
-echo "  Add: ${URL#https://}"
-
-# --allow-unauthenticated is deliberate: judges must be able to open the URL.
-# The app still refuses to do anything without a verified Firebase token.
+gcloud "${ARGS[@]}"
+gcloud run services describe "$SERVICE" --project "$PROJECT_ID" --region "$REGION" --format=json > "$DEPLOY_RESULT"
+python3 - "$DEPLOY_STATE" "$DEPLOY_RESULT" "$PROJECT_ID" "$REGION" "$SERVICE" <<'PY'
+import json,sys,shlex
+old_path,new_path,project,region,service=sys.argv[1:]
+new=json.load(open(new_path))
+base=['gcloud','run','services','update-traffic',service,'--project',project,'--region',region]
+print('\nService URL:',new['status']['url'])
+if open(old_path).read().strip():
+    old=json.load(open(old_path))
+    candidate=next((t.get('url') for t in new['status'].get('traffic',[]) if t.get('tag')=='candidate'),None)
+    revision=new['status']['latestReadyRevisionName']
+    print('Candidate URL:',candidate or 'Find the candidate tag in Cloud Run')
+    print('Current traffic is unchanged. Test the candidate before promoting.')
+    print('For Google sign-in, add the candidate hostname to Firebase Auth authorized domains.')
+    print('\nPROMOTE after testing:\n'+shlex.join(base+['--to-revisions',revision+'=100']))
+    previous={}
+    for item in old['status'].get('traffic',[]):
+        if item.get('percent',0):
+            name=item.get('revisionName') or old['status']['latestReadyRevisionName']
+            previous[name]=previous.get(name,0)+item['percent']
+    if previous:
+        print('\nROLL BACK if needed:\n'+shlex.join(base+['--to-revisions',','.join(f'{k}={v}' for k,v in previous.items())]))
+else:
+    print('New service deployed. Add its hostname to Firebase Auth authorized domains and test sign-in.')
+PY

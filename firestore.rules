@@ -1,31 +1,24 @@
 rules_version = '2';
-
-// Deny by default. A user may only ever touch documents under their own uid.
-//
-// Note: this server reads and writes with the Admin SDK, which bypasses these
-// rules entirely. They are the second lock, not the only one — they matter if
-// anything ever talks to Firestore straight from the browser.
 service cloud.firestore {
   match /databases/{database}/documents {
-
+    // The authenticated backend owns writes, validates schemas and maintains
+    // transaction/limiter state. Admin SDK operations bypass these rules.
     match /users/{uid} {
-      allow read, write: if request.auth != null && request.auth.uid == uid;
-
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow write: if false;
       match /entries/{date} {
-        allow read, write: if request.auth != null && request.auth.uid == uid;
-
+        allow read: if request.auth != null && request.auth.uid == uid;
+        allow write: if false;
         match /thread/{messageId} {
-          allow read, write: if request.auth != null && request.auth.uid == uid;
+          allow read: if request.auth != null && request.auth.uid == uid;
+          allow write: if false;
         }
       }
-
       match /insights/{day} {
-        allow read, write: if request.auth != null && request.auth.uid == uid;
+        allow read: if request.auth != null && request.auth.uid == uid;
+        allow write: if false;
       }
     }
-
-    match /{document=**} {
-      allow read, write: if false;
-    }
+    match /{document=**} { allow read, write: if false; }
   }
 }

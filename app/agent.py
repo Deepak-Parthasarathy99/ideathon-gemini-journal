@@ -4,11 +4,10 @@ Daybook is a journal that writes back. The user does the journaling; the agent's
 job is to be a warm, curious listener that helps them go one level deeper —
 never a therapist, never a lecture.
 
-Connects to Gemini through the AI Studio API key, which is what the challenge
-rules specify. The key comes from Secret Manager on Cloud Run and never
-reaches the browser.
+Uses the configured Vertex or AI Studio provider. Credentials stay server-side.
 """
 
+import asyncio
 import os
 
 from google.adk.agents import LlmAgent
@@ -16,6 +15,7 @@ from google.adk.runners import InMemoryRunner
 from google.genai import types
 
 from .config import settings
+from . import journal
 
 # Vertex authenticates as the Cloud Run service account; AI Studio uses the
 # key from Secret Manager. The library reads these from the environment.
@@ -83,11 +83,29 @@ async def ask(uid: str, message: str, context: str = "") -> str:
 
     content = types.Content(role="user", parts=[types.Part(text=prompt)])
 
-    reply = ""
-    async for event in _runner.run_async(
-        user_id=uid, session_id=session.id, new_message=content
-    ):
-        if event.is_final_response() and event.content and event.content.parts:
-            reply = "".join(p.text or "" for p in event.content.parts)
+    async def run_agent():
+        reply = ""
+        async for event in _runner.run_async(user_id=uid, session_id=session.id, new_message=content):
+            if event.is_final_response() and event.content and event.content.parts:
+                reply = "".join(p.text or "" for p in event.content.parts)
+        if not reply.strip():
+            raise RuntimeError("No model response")
+        return reply.strip()
 
-    return reply.strip() or "I couldn't come up with a reply to that."
+    try:
+        async with asyncio.timeout(settings.model_timeout):
+            try:
+                return await asyncio.wait_for(run_agent(), timeout=18)
+            except Exception as exc:
+                if not isinstance(exc, TimeoutError) and getattr(exc, "code", None) not in (404, 429, 500, 503):
+                    raise
+                response = await journal.generate(
+                    f"{root_agent.instruction}\n\n{prompt}",
+                    types.GenerateContentConfig(temperature=0.8, max_output_tokens=700),
+                    skip_primary=True,
+                )
+                if not (response.text or "").strip():
+                    raise RuntimeError("No model response")
+                return response.text.strip()
+    finally:
+        await _runner.session_service.delete_session(app_name=APP_NAME, user_id=uid, session_id=session.id)

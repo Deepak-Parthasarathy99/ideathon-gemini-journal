@@ -8,3 +8,11 @@ __pycache__/
 *.pyc
 plan/
 README.md
+.claude/
+track1/
+track2/
+track3/
+blog/
+service-account*.json
+*credentials*.json
+.env.*
