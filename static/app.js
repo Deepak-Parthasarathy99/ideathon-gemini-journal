@@ -203,7 +203,7 @@ async function openEntry(dateStr) {
     else queueReflection();
     (data.thread || []).forEach(m => addTurn(m.role === "user" ? "user" : "echo", m.text));
     if (data.thread?.length) el("say").hidden = false;
-    if (dateStr === today() && !lastSaved.trim()) loadOpener();
+    if (!lastSaved.trim()) loadOpener(dateStr);
     refreshCalendar();
   } catch (error) {
     if (!sameEntry(mine, dateStr, load)) return;
@@ -300,19 +300,27 @@ function autosize() {
   box.style.height = `${Math.max(box.value.trim() ? 96 : 260, needed)}px`;
 }
 
-async function loadOpener() {
+async function loadOpener(dateStr) {
   const epoch = session, date = openDate, load = entryLoad;
+  let opener = null;
+  let from = null;
+
   try {
-    const { opener, from } = await api("/api/opener");
-    if (!sameEntry(epoch, date, load) || el("entry").value.trim()) return;
-    el("prompt-text").textContent = opener;
-    el("prompt-from").textContent = from
-      ? `From ${heading(from).date}`
-      : "To get you started";
-    el("prompt").hidden = false;
-  } catch {
-    // A missing opener should never block the page.
+    ({ opener, from } = await api(`/api/opener?date=${dateStr}`));
+  } catch (error) {
+    // A blank page with nothing on it is the problem this feature exists
+    // to solve, so fall back to a generic question rather than showing
+    // nothing at all and explaining nothing.
+    console.error("opener failed:", error.message);
+    opener = "What's on your mind?";
   }
+
+  if (!sameEntry(epoch, date, load) || el("entry").value.trim()) return;
+  el("prompt-text").textContent = opener;
+  el("prompt-from").textContent = from
+    ? `From ${heading(from).date}`
+    : "To get you started";
+  el("prompt").hidden = false;
 }
 
 // Autosave: quiet, frequent, and it never calls the model.

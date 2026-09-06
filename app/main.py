@@ -202,18 +202,37 @@ async def talk(date: str, body: ThreadBody, user: User = CurrentUser) -> dict:
 
 
 @app.get("/api/opener")
-async def get_opener(user: User = CurrentUser) -> dict:
-    """Cached personal question, subject to the shared model-call budget."""
-    entries = await run_in_threadpool(db.list_entries, user.uid, limit=5)
+async def get_opener(date: str | None = None, user: User = CurrentUser) -> dict:
+    """A personal question for a blank page, on any day that has none.
+
+    `date` keeps the question honest when an older day is being filled in:
+    it may only draw on entries written before that day. Today's question
+    is cached, since it is the one asked over and over.
+    """
+    if date is not None:
+        date = _check_date(date)
+
+    entries = await run_in_threadpool(
+        db.list_entries, user.uid, limit=5, before=date
+    )
     signature = db.fingerprint(entries)
-    cached = await run_in_threadpool(db.cached_opener, user.uid)
-    if cached and cached.get("fingerprint") == signature:
-        return {"opener": cached["opener"], "from": cached.get("from")}
+    is_today = date is None or date == date_type.today().isoformat()
+
+    if is_today:
+        cached = await run_in_threadpool(db.cached_opener, user.uid)
+        if cached and cached.get("fingerprint") == signature:
+            return {"opener": cached["opener"], "from": cached.get("from")}
+
     if entries:
         await run_in_threadpool(_rate_limit, user.uid)
+
     text = await journal.opener(entries)
     result = {"opener": text, "from": entries[-1]["date"] if entries else None}
-    await run_in_threadpool(db.save_opener, user.uid, {**result, "fingerprint": signature})
+
+    if is_today:
+        await run_in_threadpool(
+            db.save_opener, user.uid, {**result, "fingerprint": signature}
+        )
     return result
 
 
