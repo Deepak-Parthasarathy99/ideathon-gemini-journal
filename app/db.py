@@ -97,21 +97,23 @@ def set_reflection(uid, date, text, revision):
 
 
 def list_entries(uid, limit=30, before=None):
-    # Document-ID ordering works for existing data, with no migration or composite index.
-    query = _entries(uid).order_by("__name__", direction=firestore.Query.DESCENDING)
+    """The most recent entries that have writing in them, oldest first.
+
+    Read whole and sorted here rather than ordered by Firestore. Ordering on
+    __name__ and filtering on it in the same query needs a composite index
+    that does not exist, and the failure only appears in production as
+    FAILED_PRECONDITION. Document ids are dates, so sorting them as strings
+    is chronological.
+
+    A journal is tens or hundreds of documents. If one ever ran to thousands
+    this would want a stored date field with a real ordered query, and the
+    index to match.
+    """
+    rows = [row for doc in _entries(uid).stream() if (row := _row(doc))["text"].strip()]
     if before:
-        query = query.where(filter=FieldFilter("__name__", "<", _entries(uid).document(before)))
-    rows = []
-    # Skip legacy blank entries while keeping each Firestore request bounded.
-    while len(rows) < limit:
-        batch = list(query.limit(max(30, limit)).stream())
-        if not batch:
-            break
-        rows.extend(row for doc in batch if (row := _row(doc))["text"].strip())
-        if len(batch) < max(30, limit):
-            break
-        query = query.start_after(batch[-1])
-    return list(reversed(rows[:limit]))
+        rows = [r for r in rows if r["date"] < before]
+    rows.sort(key=lambda r: r["date"])
+    return rows[-limit:]
 
 
 def written_days(uid, prefix):
